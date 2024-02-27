@@ -1,0 +1,10 @@
+fp_grandstaff_dataset/hummel/preludes/prelude67-07/prelude67-07.bekrn.p_001.krn
+fp_grandstaff_dataset/hummel/preludes/prelude67-08/prelude67-08.bekrn.p_001.krn
+fp_grandstaff_dataset/hummel/preludes/prelude67-17/prelude67-17.bekrn.p_001.krn
+fp_grandstaff_dataset/hummel/preludes/prelude67-16/prelude67-16.bekrn.p_001.krn
+fp_grandstaff_dataset/hummel/preludes/prelude67-24/prelude67-24.bekrn.p_001.krn
+fp_grandstaff_dataset/chopin/mazurkas/mazurka-52/mazurka-52.bekrn.p_001.krn
+fp_grandstaff_dataset/chopin/mazurkas/mazurka-52/mazurka-52.bekrn.p_003.krn
+fp_grandstaff_dataset/chopin/mazurkas/mazurka-52/mazurka-52.bekrn.p_002.krn
+fp_grandstaff_dataset/chopin/mazurkas/mazurka33-4/mazurka33-4.bekrn.p_004.krn
+fp_grandstaff_dataset/chopin/mazurkas/mazurka33-4/mazurka33-4.bekrn.p_005.krn

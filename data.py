@@ -105,11 +105,24 @@ class OMRIMG2SEQDataset(Dataset):
     def get_i2w(self):
         return self.i2w
     
+    def preprocess_gt(self, Y):
+        for idx, krn in enumerate(Y):
+            krnlines = []
+            krn = "".join(krn)
+            krn = krn.replace(" ", " <s> ")
+            krn = krn.replace("·", "")
+            krn = krn.replace("\t", " <t> ")
+            krn = krn.replace("\n", " <b> ")
+            krn = krn.split(" ")
+                    
+            Y[idx] = self.erase_numbers_in_tokens_with_equal(['<bos>'] + krn[4:-1] + ['<eos>'])
+        return Y
+    
 class GrandStaffSingleSystem(OMRIMG2SEQDataset):
     def __init__(self, data_path, augment=False) -> None:
         self.augment = augment
         self.teacher_forcing_error_rate = 0.2
-        self.x, self.y = load_set(data_path)
+        self.x, self.y = load_set(data_path, base_folder="FPGrandStaff", fileformat="png")
         self.y = self.preprocess_gt(self.y)
         self.num_sys_gen = 1
         self.fixed_systems_num = False
@@ -132,19 +145,6 @@ class GrandStaffSingleSystem(OMRIMG2SEQDataset):
     
     def __len__(self):
         return len(self.x)
-    
-    def preprocess_gt(self, Y):
-        for idx, krn in enumerate(Y):
-            krnlines = []
-            krn = "".join(krn)
-            krn = krn.replace(" ", " <s> ")
-            krn = krn.replace("·", "")
-            krn = krn.replace("\t", " <t> ")
-            krn = krn.replace("\n", " <b> ")
-            krn = krn.split(" ")
-                    
-            Y[idx] = self.erase_numbers_in_tokens_with_equal(['<bos>'] + krn[4:-1] + ['<eos>'])
-        return Y
 
 class SyntheticOMRDataset(OMRIMG2SEQDataset):
     def __init__(self, data_path, number_of_systems=1, teacher_forcing_perc=0.2, reduce_ratio=0.5, 
@@ -199,6 +199,106 @@ class PretrainingLinesDataset(LightningDataModule):
     def test_dataloader(self):
         return torch.utils.data.DataLoader(self.test_dataset, batch_size=self.batch_size, num_workers=self.num_workers, collate_fn=batch_preparation_img2seq)
     
+    
+class CLOMRDataset(OMRIMG2SEQDataset):
+    def __init__(self, data_path, synth_data_path, 
+                 num_cl_steps=3, max_synth_prob=0.9, min_synth_prob=0.2, increase_steps=40000, finetune_samples=200000, 
+                 teacher_forcing_perc=0.2, augment=False, curriculum_stage_beginning=1) -> None:
+        super().__init__(teacher_forcing_perc, augment)
+        self.x, self.y = load_set(data_path, base_folder="FPGrandStaff", fileformat="png")
+        self.generator = VerovioGenerator(gt_samples_path=synth_data_path, fixed_number_systems=False)
+        self.y = self.preprocess_gt(self.y)
+        self.num_sys_gen = 1
+
+        # CL parameters
+        self.max_synth_prob = max_synth_prob
+        self.min_synth_prob = min_synth_prob
+        self.perc_synth_samples = max_synth_prob
+        self.num_steps_decrease = finetune_samples
+        self.increase_steps = increase_steps
+        self.num_cl_steps = num_cl_steps
+        self.max_cl_steps = self.increase_steps * self.num_cl_steps
+        self.curriculum_stage_beginning = curriculum_stage_beginning
+    
+    def set_logger(self, logger):
+        self.logger = logger
+    
+    def erase_numbers_in_tokens_with_equal(self, tokens):
+       return [re.sub(r'(?<=\=)\d+', '', token) for token in tokens]
+
+    def linear_scheduler_synthetic(self):
+        return self.max_synth_probabilty + round((self.trainer.global_step - self.max_cl_steps) * (self.min_synth_prob - self.max_synth_prob) / self.num_steps_decrease, 4)
+
+    def set_trainer_data(self, trainer):
+        self.trainer = trainer
+    
+    def __getitem__(self, index):
+        stage = (self.trainer.global_step // self.increase_steps) + self.curriculum_stage_beginning
+
+        if stage < self.num_cl_steps + self.curriculum_stage_beginning:
+            probability = 1
+            num_sys_to_gen = np.random.randint(1, stage)
+            #Set the variable gen_author_title to True if a random number if above 0.5
+            gen_author_title = np.random.rand() > 0.5
+            x, y = self.generator.generate_score(num_sys_gen=num_sys_to_gen,
+                                                 check_generated_systems=True, cut_height=False, add_texture=False, 
+                                                 include_author=gen_author_title, include_title=gen_author_title)
+        else:
+            probability = max(self.min_synth_prob, self.linear_scheduler_synthetic())
+            if np.random.random() > probability:
+                x = self.x[index]
+                y = self.y[index]
+            else:
+                num_sys_to_gen = np.random.randint(1, 5)
+                gen_author_title = np.random.rand() > 0.5
+                x, y = self.generator.generate_score(num_sys_gen=num_sys_to_gen,
+                                                     check_generated_systems=False, cut_height=False, add_texture=False, 
+                                                     include_author=gen_author_title, include_title=gen_author_title)
+
+        if self.augment:
+            x = augment(x)
+        else:
+            x = convert_img_to_tensor(x)
+        
+        y = torch.from_numpy(np.asarray([self.w2i[token] for token in y]))
+        decoder_input = self.apply_teacher_forcing(y)
+
+        if self.logger != None:
+            self.logger.experiment.log({'synth_proba': probability, 'training_stage': stage})
+    
+        return x, decoder_input, y
+
+
+class GraphicCLDataModule(LightningDataModule):
+    def __init__(self, data_path, synth_data_path, vocab_name,
+                 num_cl_steps=3, max_synth_prob=0.9, min_synth_prob=0.2, increase_steps=40000, finetune_samples=200000,
+                 batch_size=1, num_workers=24) -> None:
+        super().__init__()
+        self.data_path = data_path
+        self.synth_data_path = synth_data_path
+        self.vocab_name = vocab_name
+        self.batch_size = batch_size
+        self.num_workers = num_workers
+        self.train_dataset = CLOMRDataset(data_path=f"{self.data_path}/train.txt", synth_data_path=f"{self.synth_data_path}/train.txt", 
+                                          num_cl_steps=num_cl_steps, max_synth_prob=max_synth_prob, min_synth_prob=min_synth_prob, increase_steps=increase_steps, finetune_samples=finetune_samples, curriculum_stage_beginning=2,
+                                          augment=True)
+        self.val_dataset = GrandStaffSingleSystem(data_path=f"{self.data_path}/val.txt", augment=False)
+        self.test_dataset = GrandStaffSingleSystem(data_path=f"{self.data_path}/test.txt", augment=False)
+        w2i, i2w = check_and_retrieveVocabulary([self.train_dataset.get_gt(), self.val_dataset.get_gt(), self.test_dataset.get_gt()], "vocab/", f"{self.vocab_name}")#
+    
+        self.train_dataset.set_dictionaries(w2i, i2w)
+        self.val_dataset.set_dictionaries(w2i, i2w)
+        self.test_dataset.set_dictionaries(w2i, i2w)
+        
+    def train_dataloader(self):
+        return torch.utils.data.DataLoader(self.train_dataset, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=True, collate_fn=batch_preparation_img2seq)
+    
+    def val_dataloader(self):
+        return torch.utils.data.DataLoader(self.val_dataset, batch_size=self.batch_size, num_workers=self.num_workers, collate_fn=batch_preparation_img2seq)
+    
+    def test_dataloader(self):
+        return torch.utils.data.DataLoader(self.test_dataset, batch_size=self.batch_size, num_workers=self.num_workers, collate_fn=batch_preparation_img2seq)
+
 
 if __name__ == "__main__":
     #train_dataset, val_dataset, test_dataset = load_data_single_pretraining("Data/GrandStaff/partitions_grandstaff/types/", "GrandStaffGlobal")

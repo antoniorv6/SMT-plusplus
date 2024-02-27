@@ -13,4 +13,4 @@ training:
   metric_to_watch: "val_SER"
   metric_mode: "min"
   max_epochs: 10000
-  val_after: 51680
+  val_after: 5

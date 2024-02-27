@@ -1,0 +1,5 @@
+SMT.d_model = 256
+SMT.dim_ff = 256
+SMT.num_dec_layers = 8
+SMT.encoder_type = "NexT"
+MHA.use_flash_attn = True

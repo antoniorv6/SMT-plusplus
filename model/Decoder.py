@@ -2,12 +2,13 @@ import gin
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from torch.nn.init import xavier_uniform_
 from .PositionEncoding import PositionalEncoding1D
 
+@gin.configurable
 class MHA(nn.Module):
-
     def __init__(self, embedding_dim, num_heads=None, dropout=0, proj_value=True) -> None:
         super().__init__()
 
@@ -24,7 +25,7 @@ class MHA(nn.Module):
         self.scale_factor = float(self.head_dim) ** -0.5
         self.dropout = nn.Dropout(dropout)
         self.softmax = nn.Softmax(dim=-1)
-    
+            
     def forward(self, query, key, value, key_pad_mask=None, attn_mask=None, get_weights=True):
         
         target_len, b, c = query.size()
@@ -37,24 +38,23 @@ class MHA(nn.Module):
         q = torch.reshape(q, (target_len, b*self.num_heads, self.head_dim)).transpose(0, 1)
         k = torch.reshape(k, (source_len, b*self.num_heads, self.head_dim)).transpose(0, 1)
         v = torch.reshape(v, (source_len, b*self.num_heads, self.head_dim)).transpose(0, 1)
-
+        
         attn_weights = torch.bmm(q, k.transpose(1,2))
-
+        
         if attn_mask is not None:
             attn_mask = attn_mask.unsqueeze(0)
             if attn_mask.dtype == torch.bool:
                 attn_weights.masked_fill_(attn_mask, float("-inf"))
             else:
                 attn_weights += attn_mask
-
+                
         if key_pad_mask is not None:
             attn_output_weigths = attn_weights.view(b, self.num_heads, target_len, source_len)
             attn_output_weigths = attn_weights.masked_fill(key_pad_mask.unsqueeze(1).unsqueeze(2), float("-inf"))
             attn_output_weigths = attn_weights.view(b*self.num_heads, target_len, source_len)
-        
+            
         attn_output_weigths_raw = self.softmax(attn_output_weigths)
         attn_output_weigths = self.dropout(attn_output_weigths_raw)
-
         attn_output = torch.bmm(attn_output_weigths, v)
         attn_output = attn_output.transpose(0,1).contiguous().view(target_len, b, c)
         attn_output = self.out_proj(attn_output)

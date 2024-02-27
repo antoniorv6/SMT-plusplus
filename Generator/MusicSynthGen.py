@@ -112,10 +112,10 @@ class VerovioGenerator():
         image = IMG.from_array(np.array(sample))
         paint = rfloat(0, 1)
         image.oil_paint(paint)
-        rotate = rfloat(-1, 1)
-        image.rotate(degree=rotate, background="WHITE")
-        blur1, blur2, blur3 = rfloat(-5, 5), rfloat(-5, 5), rfloat(-5, 5)
-        image.motion_blur(radius=blur1, sigma=blur2, angle=blur3)
+        #rotate = rfloat(-1, 1)
+        #image.rotate(degree=rotate, background="WHITE")
+        #blur1, blur2, blur3 = rfloat(-5, 5), rfloat(-5, 5), rfloat(-5, 5)
+        #image.motion_blur(radius=blur1, sigma=blur2, angle=blur3)
         
         return Image.fromarray(np.array(image))
 
