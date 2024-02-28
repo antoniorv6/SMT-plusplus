@@ -1,0 +1,4 @@
+SMT.d_model = 64
+SMT.dim_ff = 64
+SMT.num_dec_layers = 8
+SMT.encoder_type = "NexT"
