@@ -7,7 +7,6 @@ import torch.nn.functional as F
 from torch.nn.init import xavier_uniform_
 from .PositionEncoding import PositionalEncoding1D
 
-@gin.configurable
 class MHA(nn.Module):
     def __init__(self, embedding_dim, num_heads=None, dropout=0, proj_value=True) -> None:
         super().__init__()
