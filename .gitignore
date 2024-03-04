@@ -141,3 +141,4 @@ weights_old/*
 Data/*.tgz
 lightning_logs/
 Generator/paper_textures/
+perico/*
