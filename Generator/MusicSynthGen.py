@@ -15,6 +15,9 @@ from rich import progress
 def rfloat(start, end):
     return round(random.uniform(start, end), 2)
 
+def rint(start, end):
+    return random.randint(start, end)
+
 def erase_numbers_in_tokens_with_equal(tokens):
        return [re.sub(r'(?<=\=)\d+', '', token) for token in tokens]
 
@@ -120,13 +123,17 @@ class VerovioGenerator():
         return Image.fromarray(np.array(image))
 
     def generate_score(self, num_sys_gen=1, padding=10, 
-                       reduce_ratio=0.5, check_generated_systems=True, 
+                       reduce_ratio=0.5, random_margins=True, check_generated_systems=True, 
                        cut_height=True, add_texture=False, 
                        include_title=False, include_author=False):
         
         n_sys_generate = random.randint(1, num_sys_gen)
         if self.fixed_systems:
             n_sys_generate = num_sys_gen
+        
+        margins = [50 for _ in range(4)]
+        if random_margins:
+            margins = [rint(25, 200) for _ in range(4)]
         
         generated_systems = np.inf
         while generated_systems != n_sys_generate:
@@ -162,9 +169,10 @@ class VerovioGenerator():
             #    krnfile.write("".join(random_systems[0]).replace("<s>", " ").replace("<b>", "\n").replace("<t>", "\t").replace("**ekern_1.0", "**kern"))
             #with open("end.krn", "w") as krnfile:
             #    krnfile.write("".join(random_systems[-1]).replace("<s>", " ").replace("<b>", "\n").replace("<t>", "\t").replace("**ekern_1.0", "**kern"))   
-
+            
             self.tk.loadData(krnseq)
-            self.tk.setOptions({"pageWidth": 2100, "footer": 'none', 'barLineWidth': rfloat(0.3, 0.8), 'beamMaxSlope': rfloat(10,20), 'staffLineWidth': rfloat(0.1, 0.3), 'spacingStaff': rfloat(1, 12)})
+            self.tk.setOptions({"pageWidth": 2100, "pageMarginLeft":margins[0], "pageMarginRight":margins[1], "pageMarginTop":margins[2], "pageMarginBottom":margins[3], 
+                                "footer": 'none', 'barLineWidth': rfloat(0.3, 0.8), 'beamMaxSlope': rfloat(10,20), 'staffLineWidth': rfloat(0.1, 0.3), 'spacingStaff': rfloat(1, 12)})
             self.tk.getPageCount()
             svg = self.tk.renderToSVG()
             svg = svg.replace("overflow=\"inherit\"", "overflow=\"visible\"")

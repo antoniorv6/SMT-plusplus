@@ -43,12 +43,12 @@ def main(config_vars, corpus, model_name, weights_path, fold):
                                    monitor=config_vars.training.metric_to_watch, mode='min',
                                    save_top_k=1, verbose=True)
     
-    checkpointer2 = ModelCheckpoint(dirpath=f"weights/{corpus}/", filename=f"{model_name}_synthetic", 
-                                   every_n_train_steps=119000, verbose=True)
+    #checkpointer2 = ModelCheckpoint(dirpath=f"weights/{corpus}/", filename=f"{model_name}_synthetic", 
+    #                               every_n_train_steps=119000, verbose=True)
 
     trainer = Trainer(max_epochs=config_vars.training.max_epochs, 
                       check_val_every_n_epoch=config_vars.training.val_after, 
-                      logger=wandb_logger, callbacks=[checkpointer, checkpointer2, early_stopping], precision='16-mixed')
+                      logger=wandb_logger, callbacks=[checkpointer, early_stopping], precision='16-mixed')
     
     train_dataset.set_logger(wandb_logger)
     train_dataset.set_trainer_data(trainer)

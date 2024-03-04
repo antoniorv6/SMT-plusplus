@@ -257,7 +257,7 @@ class Decoder(nn.Module):
             weights = torch.sum(weights, dim=1, keepdim=True).reshape(-1, 1, features_size[2], features_size[3])
 
         return output, predictions, hidden_predict, cache, weights
-
+    
     def generate_enc_mask(self, batch_reduced_size, total_size, device):
         batch_size, _, h_max, w_max = total_size
         mask = torch.ones((batch_size, h_max, w_max), dtype=torch.bool, device=device)

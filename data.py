@@ -159,7 +159,7 @@ class SyntheticOMRDataset(OMRIMG2SEQDataset):
     def __getitem__(self, index):
         
         x, y = self.generator.generate_score(num_sys_gen=self.num_sys_gen, reduce_ratio=self.reduce_ratio,
-                                             check_generated_systems=True, add_texture=self.include_texture,
+                                             check_generated_systems=True, random_margins=False, add_texture=self.include_texture,
                                              include_title=False, include_author=False)
         
         if self.augment:
@@ -227,7 +227,7 @@ class CLOMRDataset(OMRIMG2SEQDataset):
        return [re.sub(r'(?<=\=)\d+', '', token) for token in tokens]
 
     def linear_scheduler_synthetic(self):
-        return self.max_synth_probabilty + round((self.trainer.global_step - self.max_cl_steps) * (self.min_synth_prob - self.max_synth_prob) / self.num_steps_decrease, 4)
+        return self.max_synth_prob + round((self.trainer.global_step - self.max_cl_steps) * (self.min_synth_prob - self.max_synth_prob) / self.num_steps_decrease, 4)
 
     def set_trainer_data(self, trainer):
         self.trainer = trainer
