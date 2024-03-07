@@ -240,8 +240,9 @@ class CLOMRDataset(OMRIMG2SEQDataset):
             num_sys_to_gen = np.random.randint(1, stage)
             #Set the variable gen_author_title to True if a random number if above 0.5
             gen_author_title = np.random.rand() > 0.5
+            add_texture = np.random.rand() > 0.5
             x, y = self.generator.generate_score(num_sys_gen=num_sys_to_gen,
-                                                 check_generated_systems=True, cut_height=False, add_texture=False, 
+                                                 check_generated_systems=True, cut_height=False, add_texture=add_texture, 
                                                  include_author=gen_author_title, include_title=gen_author_title)
         else:
             probability = max(self.min_synth_prob, self.linear_scheduler_synthetic())
