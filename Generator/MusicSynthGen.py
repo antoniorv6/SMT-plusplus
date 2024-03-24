@@ -12,6 +12,13 @@ import xml.etree.ElementTree as ET
 from PIL import Image, ImageOps
 from rich import progress
 
+def simplify_tokens(tokens):
+    simplified_tokens = []
+    for token in tokens:
+        token = re.sub(r'::+', '', token)
+        simplified_tokens.append(token)
+    return simplified_tokens
+
 def rfloat(start, end):
     return round(random.uniform(start, end), 2)
 
@@ -35,6 +42,9 @@ def load_data_from_krn(path, base_folder="GrandStaff", krn_type="bekrn"):
                     krn = krn.replace("\n", " <b> ")
                     krn = krn.replace("\n", " <b> ")
                     krn = krn.replace("·", "")
+                    krn = krn.replace("@", "")
+                    krn = krn.replace("/", "")
+                    krn = krn.replace("\\", "")
                     krn = krn.split(" ")
                     y.append(erase_numbers_in_tokens_with_equal(krn))
                     
@@ -123,7 +133,7 @@ class VerovioGenerator():
         return Image.fromarray(np.array(image))
 
     def generate_score(self, num_sys_gen=1, padding=10, 
-                       reduce_ratio=0.5, random_margins=True, check_generated_systems=True, 
+                       reduce_ratio=0.35, random_margins=True, check_generated_systems=True, 
                        cut_height=True, add_texture=False, 
                        include_title=False, include_author=False):
         
@@ -131,7 +141,8 @@ class VerovioGenerator():
         if self.fixed_systems:
             n_sys_generate = num_sys_gen
         
-        margins = [50 for _ in range(4)]
+        margins = None
+
         if random_margins:
             margins = [rint(25, 200) for _ in range(4)]
         
@@ -171,8 +182,15 @@ class VerovioGenerator():
             #    krnfile.write("".join(random_systems[-1]).replace("<s>", " ").replace("<b>", "\n").replace("<t>", "\t").replace("**ekern_1.0", "**kern"))   
             
             self.tk.loadData(krnseq)
-            self.tk.setOptions({"pageWidth": 2100, "pageMarginLeft":margins[0], "pageMarginRight":margins[1], "pageMarginTop":margins[2], "pageMarginBottom":margins[3], 
+            
+            width = random.choice([2100, 3000])
+            
+            if random_margins:
+                self.tk.setOptions({"pageWidth": width, "pageMarginLeft":margins[0], "pageMarginRight":margins[1], "pageMarginTop":margins[2], "pageMarginBottom":margins[3], 
                                 "footer": 'none', 'barLineWidth': rfloat(0.3, 0.8), 'beamMaxSlope': rfloat(10,20), 'staffLineWidth': rfloat(0.1, 0.3), 'spacingStaff': rfloat(1, 12)})
+            else:
+                self.tk.setOptions({"pageWidth": width, "footer": 'none', 'barLineWidth': rfloat(0.3, 0.8), 'beamMaxSlope': rfloat(10,20), 'staffLineWidth': rfloat(0.1, 0.3), 'spacingStaff': rfloat(1, 12)})
+
             self.tk.getPageCount()
             svg = self.tk.renderToSVG()
             svg = svg.replace("overflow=\"inherit\"", "overflow=\"visible\"")
@@ -190,8 +208,6 @@ class VerovioGenerator():
             pngfile = pngfile[:height + padding, :]
 
         x = pngfile
-        x = self.inkify_image(x)
-        x = np.array(x)
         
         if add_texture == True:
             texture = Image.open(random.choice(self.textures))
@@ -200,6 +216,8 @@ class VerovioGenerator():
             if texture.size[0] < img_width or texture.size[1] < img_height:
                 texture = texture.resize((img_width, img_height))
             
+            x = self.inkify_image(x)
+            x = np.array(x)
             music_image = Image.fromarray(x)
             left = random.randint(0, texture.size[0] - img_width)
             top = random.randint(0, texture.size[1] - img_height)
@@ -208,12 +226,13 @@ class VerovioGenerator():
             mask = inverted_music_image.convert("L")
             texture.paste(music_image, mask=mask)
             x = texture#cv2.cvtColor(np.array(texture), cv2.COLOR_RGB2BGR)
+        else:
+            x = np.array(x)
         
         x = cv2.cvtColor(np.array(x), cv2.COLOR_BGR2RGB)
         
         width = int(np.ceil(pngfile.shape[1] * reduce_ratio))
         height = int(np.ceil(pngfile.shape[0] * reduce_ratio))
         x = cv2.resize(x, (width, height))
-
 
         return x, ['<bos>'] + sequence[4:-1] + ['<eos>']

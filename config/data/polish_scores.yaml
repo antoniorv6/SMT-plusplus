@@ -1,0 +1,8 @@
+data_path: "Data/PolishScores/partitions_polishscores/excerpts/fold_"
+synth_path: "Data/GrandStaff/partitions_grandstaff/types/"
+vocab_name: "PolishGlobal_Simple"
+out_dir: "out/GrandStaff/SMTCNN_lines"
+krn_type: "ekrn"
+reduce_ratio: 0.3
+base_folder: "PolishScores"
+file_format: "jpg"

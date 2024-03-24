@@ -1,3 +1,5 @@
+import gin
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -36,21 +38,19 @@ class MHA(nn.Module):
         k = torch.reshape(k, (source_len, b*self.num_heads, self.head_dim)).transpose(0, 1)
         v = torch.reshape(v, (source_len, b*self.num_heads, self.head_dim)).transpose(0, 1)
         
-        attn_weights = torch.bmm(q, k.transpose(1,2))
+        attn_output_weigths = torch.bmm(q, k.transpose(1,2))
         
         if attn_mask is not None:
             attn_mask = attn_mask.unsqueeze(0)
             if attn_mask.dtype == torch.bool:
-                attn_weights.masked_fill_(attn_mask, float("-inf"))
+                attn_output_weigths.masked_fill_(attn_mask, float("-inf"))
             else:
-                attn_weights += attn_mask
+                attn_output_weigths += attn_mask
                 
         if key_pad_mask is not None:
-            attn_output_weigths = attn_weights.view(b, self.num_heads, target_len, source_len)
+            attn_output_weigths = attn_output_weigths.view(b, self.num_heads, target_len, source_len)
             attn_output_weigths = attn_output_weigths.masked_fill(key_pad_mask.unsqueeze(1).unsqueeze(2), float("-inf"))
             attn_output_weigths = attn_output_weigths.view(b*self.num_heads, target_len, source_len)
-        else:
-            attn_output_weigths = attn_weights
             
         attn_output_weigths_raw = self.softmax(attn_output_weigths)
         attn_output_weigths = self.dropout(attn_output_weigths_raw)
@@ -195,11 +195,10 @@ class DecoderStack(nn.Module):
 
 
 class Decoder(nn.Module):
-
-    def __init__(self, d_model, dim_ff, n_layers, maxlen, out_categories, attention_window=1) -> None:
+    def __init__(self, d_model, dim_ff, n_layers, maxlen, out_categories, attention_window=100) -> None:
         super(Decoder, self).__init__()
         self.dropout = nn.Dropout(0.1)
-        self.dec_attn_win = attention_window
+        self.dec_attn_win = maxlen
         self.positional_1D = PositionalEncoding1D(d_model, maxlen)
 
         self.decoder = DecoderStack(num_dec_layers=n_layers, d_model=d_model, dim_ff=dim_ff)
@@ -240,7 +239,7 @@ class Decoder(nn.Module):
         memory_mask = None
 
         key_target_mask = self.generate_token_mask(token_len, tokens.size(), device)
-        key_memory_mask = self.generate_enc_mask(reduced_size, features_size, device)
+        key_memory_mask = None#self.generate_enc_mask(reduced_size, features_size, device)
 
         target_mask = target_mask[-num_pred:, -num_tokens_to_keep:]
         key_target_mask = key_target_mask[:, -num_tokens_to_keep:]
@@ -257,7 +256,7 @@ class Decoder(nn.Module):
             weights = torch.sum(weights, dim=1, keepdim=True).reshape(-1, 1, features_size[2], features_size[3])
 
         return output, predictions, hidden_predict, cache, weights
-    
+
     def generate_enc_mask(self, batch_reduced_size, total_size, device):
         batch_size, _, h_max, w_max = total_size
         mask = torch.ones((batch_size, h_max, w_max), dtype=torch.bool, device=device)

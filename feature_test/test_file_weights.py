@@ -3,19 +3,20 @@ import fire
 import torch
 import numpy as np
 from rich import progress
-from ModelManager import SMT
+from SMT import SMT
 from visualizer.WeightsVisualizer import SMTWeightsVisualizer
 from data_augmentation.data_augmentation import convert_img_to_tensor
 
-WIDTH = int(2100 * 0.5)
+def main():
 
-def main(img_path, model_weights):
+    img_path = "#2.jpg"
+    model_weights = "weights/fp_polish_simple/SMT_NexT_fold_0.ckpt"
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     visualizer_module = SMTWeightsVisualizer(frames_path="frames/", animation_path="animation/")
     
     img = cv2.imread(img_path)
-    img = cv2.resize(img, (WIDTH, int(img.shape[0] * WIDTH / img.shape[1])))
+    img = cv2.resize(img, (int(img.shape[1] * 0.3), int(img.shape[1] * 0.3)))
     img_tensor = convert_img_to_tensor(img)
     
     model = SMT.load_from_checkpoint(model_weights)
@@ -36,7 +37,6 @@ def main(img_path, model_weights):
             predicted_char = i2w[predicted_token]
             if predicted_char == '<eos>':
                 break
-            text_sequence.append(predicted_char)
             weights["self"] = [torch.reshape(w.unsqueeze(1).cpu(), (-1, 1, encoder_output.shape[2], encoder_output.shape[3])) for w in weights["self"]]
             weights_append = weights["self"][-1]
             self_weights.append(weights["mix"][-1])
@@ -59,12 +59,6 @@ def main(img_path, model_weights):
     
     import sys
     sys.exit()
-    
-    
-    pass
-
-def launch(img_path, model_weights):
-    main(img_path, model_weights)
 
 if __name__ == "__main__":
-    fire.Fire(launch)
+    main()

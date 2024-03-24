@@ -3,6 +3,7 @@ import cv2
 import torch
 import numpy as np
 
+from config_typings import DataConfig, CLConfig
 from rich import progress
 from utils import check_and_retrieveVocabulary
 from lightning.pytorch import LightningDataModule
@@ -17,18 +18,18 @@ def load_set(path, base_folder="GrandStaff", fileformat="jpg", krn_type="bekrn",
         lines = datafile.readlines()
         for line in progress.track(lines):
             excerpt = line.replace("\n", "")
-            try:
-                with open(f"Data/{base_folder}/{'.'.join(excerpt.split('.')[:-1])}.{krn_type}") as krnfile:
-                    krn_content = krnfile.read()
-                    fname = ".".join(excerpt.split('.')[:-1])
-                    img = cv2.imread(f"Data/{base_folder}/{fname}.{fileformat}")
-                    width = int(np.ceil(img.shape[1] * reduce_ratio))
-                    height = int(np.ceil(img.shape[0] * reduce_ratio))
-                    img = cv2.resize(img, (width, height))
-                    y.append([content + '\n' for content in krn_content.strip().split("\n")])
-                    x.append(img)
-            except Exception:
-                print(f'Error reading Data/GrandStaff/{excerpt}')
+            #try:
+            with open(f"Data/{base_folder}/{'.'.join(excerpt.split('.')[:-1])}.{krn_type}") as krnfile:
+                krn_content = krnfile.read()
+                fname = ".".join(excerpt.split('.')[:-1])
+                img = cv2.imread(f"Data/{base_folder}/{fname}.{fileformat}")
+                width = int(np.ceil(img.shape[1] * reduce_ratio))
+                height = int(np.ceil(img.shape[0] * reduce_ratio))
+                img = cv2.resize(img, (width, height))
+                y.append([content + '\n' for content in krn_content.strip().split("\n")])
+                x.append(img)
+            #except Exception e:
+            #    print(f'Error reading Data/GrandStaff/{excerpt}')
 
     return x, y
 
@@ -111,6 +112,9 @@ class OMRIMG2SEQDataset(Dataset):
             krn = "".join(krn)
             krn = krn.replace(" ", " <s> ")
             krn = krn.replace("·", "")
+            krn = krn.replace("@", "")
+            krn = krn.replace("/", "")
+            krn = krn.replace("\\", "")
             krn = krn.replace("\t", " <t> ")
             krn = krn.replace("\n", " <b> ")
             krn = krn.split(" ")
@@ -119,10 +123,11 @@ class OMRIMG2SEQDataset(Dataset):
         return Y
     
 class GrandStaffSingleSystem(OMRIMG2SEQDataset):
-    def __init__(self, data_path, augment=False) -> None:
+    def __init__(self, data_path, config:DataConfig, augment=False) -> None:
         self.augment = augment
         self.teacher_forcing_error_rate = 0.2
-        self.x, self.y = load_set(data_path, base_folder="FPGrandStaff", fileformat="png")
+        self.x, self.y = load_set(data_path, base_folder=config.base_folder, 
+                                  fileformat=config.file_format, krn_type=config.krn_type, reduce_ratio=config.reduce_ratio)
         self.y = self.preprocess_gt(self.y)
         self.num_sys_gen = 1
         self.fixed_systems_num = False
@@ -161,7 +166,7 @@ class SyntheticOMRDataset(OMRIMG2SEQDataset):
         x, y = self.generator.generate_score(num_sys_gen=self.num_sys_gen, reduce_ratio=self.reduce_ratio,
                                              check_generated_systems=True, random_margins=False, add_texture=self.include_texture,
                                              include_title=False, include_author=False)
-        
+
         if self.augment:
             x = augment(x)
         else:
@@ -175,10 +180,10 @@ class SyntheticOMRDataset(OMRIMG2SEQDataset):
         return self.dataset_len
 
 class PretrainingLinesDataset(LightningDataModule):
-    def __init__(self, data_path, vocab_name, batch_size=1, num_workers=24) -> None:
+    def __init__(self, config:DataConfig, batch_size=1, num_workers=24) -> None:
         super().__init__()
-        self.data_path = data_path
-        self.vocab_name = vocab_name
+        self.data_path = config.data_path
+        self.vocab_name = config.vocab_name
         self.batch_size = batch_size
         self.num_workers = num_workers
         self.train_dataset = SyntheticOMRDataset(data_path=f"{self.data_path}/train.txt", augment=True, fixed_systems=True)
@@ -201,24 +206,23 @@ class PretrainingLinesDataset(LightningDataModule):
     
     
 class CLOMRDataset(OMRIMG2SEQDataset):
-    def __init__(self, data_path, synth_data_path, 
-                 num_cl_steps=3, max_synth_prob=0.9, min_synth_prob=0.2, increase_steps=40000, finetune_samples=200000, 
-                 teacher_forcing_perc=0.2, augment=False, curriculum_stage_beginning=1) -> None:
+    def __init__(self, data_config:DataConfig, cl_config:CLConfig, teacher_forcing_perc=0.2, augment=False) -> None:
         super().__init__(teacher_forcing_perc, augment)
-        self.x, self.y = load_set(data_path, base_folder="FPGrandStaff", fileformat="png")
-        self.generator = VerovioGenerator(gt_samples_path=synth_data_path, fixed_number_systems=False)
+        self.x, self.y = load_set(f"{data_config.data_path}{data_config.fold}/train.txt", base_folder=data_config.base_folder, fileformat=data_config.file_format, 
+                                  krn_type=data_config.krn_type, reduce_ratio=data_config.reduce_ratio)
+        self.generator = VerovioGenerator(gt_samples_path=f"{data_config.synth_path}/train.txt", fixed_number_systems=False)
         self.y = self.preprocess_gt(self.y)
         self.num_sys_gen = 1
 
         # CL parameters
-        self.max_synth_prob = max_synth_prob
-        self.min_synth_prob = min_synth_prob
-        self.perc_synth_samples = max_synth_prob
-        self.num_steps_decrease = finetune_samples
-        self.increase_steps = increase_steps
-        self.num_cl_steps = num_cl_steps
+        self.max_synth_prob = cl_config.max_synth_prob
+        self.min_synth_prob = cl_config.min_synth_prob
+        self.perc_synth_samples = cl_config.max_synth_prob
+        self.num_steps_decrease = cl_config.finetune_steps
+        self.increase_steps = cl_config.increase_steps
+        self.num_cl_steps = cl_config.num_cl_steps
         self.max_cl_steps = self.increase_steps * self.num_cl_steps
-        self.curriculum_stage_beginning = curriculum_stage_beginning
+        self.curriculum_stage_beginning = cl_config.curriculum_stage_beginning
     
     def set_logger(self, logger):
         self.logger = logger
@@ -240,9 +244,10 @@ class CLOMRDataset(OMRIMG2SEQDataset):
             num_sys_to_gen = np.random.randint(1, stage)
             #Set the variable gen_author_title to True if a random number if above 0.5
             gen_author_title = np.random.rand() > 0.5
-            add_texture = np.random.rand() > 0.5
+            add_texture = np.random.rand() > 0.7
+            cut_height = np.random.rand() > 0.4
             x, y = self.generator.generate_score(num_sys_gen=num_sys_to_gen,
-                                                 check_generated_systems=True, cut_height=False, add_texture=add_texture, 
+                                                 check_generated_systems=True, cut_height=cut_height, add_texture=add_texture, 
                                                  include_author=gen_author_title, include_title=gen_author_title)
         else:
             probability = max(self.min_synth_prob, self.linear_scheduler_synthetic())
@@ -250,10 +255,12 @@ class CLOMRDataset(OMRIMG2SEQDataset):
                 x = self.x[index]
                 y = self.y[index]
             else:
+                add_texture = np.random.rand() > 0.7
                 num_sys_to_gen = np.random.randint(1, 5)
-                gen_author_title = np.random.rand() > 0.5
+                gen_author_title = np.random.rand() > 0.6
+                cut_height = np.random.rand() > 0.5
                 x, y = self.generator.generate_score(num_sys_gen=num_sys_to_gen,
-                                                     check_generated_systems=False, cut_height=False, add_texture=False, 
+                                                     check_generated_systems=False, cut_height=cut_height, add_texture=add_texture, 
                                                      include_author=gen_author_title, include_title=gen_author_title)
 
         if self.augment:
@@ -271,21 +278,20 @@ class CLOMRDataset(OMRIMG2SEQDataset):
 
 
 class GraphicCLDataModule(LightningDataModule):
-    def __init__(self, data_path, synth_data_path, vocab_name,
-                 num_cl_steps=3, max_synth_prob=0.9, min_synth_prob=0.2, increase_steps=40000, finetune_samples=200000,
-                 batch_size=1, num_workers=24) -> None:
+    def __init__(self, data_config:DataConfig, cl_config:CLConfig, fold=0, batch_size=1, num_workers=24) -> None:
         super().__init__()
-        self.data_path = data_path
-        self.synth_data_path = synth_data_path
-        self.vocab_name = vocab_name
+        self.data_path = f"{data_config.data_path}_{fold}"
+        self.synth_data_path = data_config.synth_path
+        self.vocab_name = data_config.vocab_name
         self.batch_size = batch_size
         self.num_workers = num_workers
-        self.train_dataset = CLOMRDataset(data_path=f"{self.data_path}/train.txt", synth_data_path=f"{self.synth_data_path}/train.txt", 
-                                          num_cl_steps=num_cl_steps, max_synth_prob=max_synth_prob, min_synth_prob=min_synth_prob, increase_steps=increase_steps, finetune_samples=finetune_samples, curriculum_stage_beginning=2,
-                                          augment=True)
-        self.val_dataset = GrandStaffSingleSystem(data_path=f"{self.data_path}/val.txt", augment=False)
-        self.test_dataset = GrandStaffSingleSystem(data_path=f"{self.data_path}/test.txt", augment=False)
-        w2i, i2w = check_and_retrieveVocabulary([self.train_dataset.get_gt(), self.val_dataset.get_gt(), self.test_dataset.get_gt()], "vocab/", f"{self.vocab_name}")#
+        self.train_dataset = CLOMRDataset(data_config=data_config, cl_config=cl_config, augment=True)
+        
+        self.val_dataset = GrandStaffSingleSystem(data_path=f"{data_config.data_path}{fold}/val.txt",config=data_config, augment=False)
+        self.test_dataset = GrandStaffSingleSystem(data_path=f"{data_config.data_path}{fold}/test.txt", config=data_config, augment=False)
+        w2i, i2w = check_and_retrieveVocabulary([self.train_dataset.get_gt(), 
+                                                 self.val_dataset.get_gt(), 
+                                                 self.test_dataset.get_gt()], "vocab/", f"{self.vocab_name}")#
     
         self.train_dataset.set_dictionaries(w2i, i2w)
         self.val_dataset.set_dictionaries(w2i, i2w)

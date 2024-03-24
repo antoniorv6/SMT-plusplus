@@ -1,34 +1,33 @@
-import gin
-
 import numpy as np
 
 import torch
 import torch.nn as nn
 import lightning.pytorch as L
 
+from torchinfo import summary
+
+from config_typings import SMTConfig
+
 from model.ConvEncoder import Encoder
 from model.ConvNextEncoder import ConvNextEncoder
 from model.Decoder import Decoder
 from model.PositionEncoding import PositionalEncoding2D
-from torchinfo import summary
+
 from eval_functions import compute_poliphony_metrics
 
-
-@gin.configurable
 class SMT(L.LightningModule):
-    def __init__(self, maxh, maxw, maxlen, out_categories, padding_token, in_channels, w2i, i2w, out_dir, 
-                 d_model=None, dim_ff=None, num_dec_layers=None, encoder_type="Normal") -> None:
+    def __init__(self, config:SMTConfig, w2i, i2w) -> None:
         super().__init__()
         
-        if encoder_type == "NexT":
-            self.encoder = ConvNextEncoder(in_chans=1, depths=[3,3,9], dims=[64, 128, 256])
+        if config.encoder_type == "NexT":
+            self.encoder = ConvNextEncoder(in_chans=config.in_channels, depths=[3,3,9], dims=[64, 128, 256])
         else:
-            self.encoder = Encoder(in_channels=in_channels)
+            self.encoder = Encoder(in_channels=config.in_channels)
 
-        self.decoder = Decoder(d_model, dim_ff, num_dec_layers, maxlen, out_categories)
-        self.positional_2D = PositionalEncoding2D(d_model, maxh, maxw)
+        self.decoder = Decoder(config.d_model, config.dim_ff, config.num_dec_layers, config.max_len + 1, len(w2i))
+        self.positional_2D = PositionalEncoding2D(config.d_model, (config.max_height//16) + 1, (config.max_width//8) + 1)
 
-        self.padding_token = padding_token
+        self.padding_token = 0
 
         self.loss = nn.CrossEntropyLoss(ignore_index=self.padding_token)
 
@@ -37,8 +36,11 @@ class SMT(L.LightningModule):
 
         self.w2i = w2i
         self.i2w = i2w
-        self.maxlen = maxlen
-        self.out_dir=out_dir
+
+        self.maxlen = config.max_len
+
+        summary(self, input_size=[(1,1,config.max_height,config.max_width), (1,config.max_len)], 
+                dtypes=[torch.float, torch.long])
 
         self.save_hyperparameters()
 
@@ -138,18 +140,4 @@ class SMT(L.LightningModule):
     
     def on_test_epoch_end(self) -> None:
         return self.on_validation_epoch_end(name="test")
-
-def get_SMT_network(in_channels, max_height, max_width, max_len, out_categories, w2i, i2w, out_dir, model_name=None):
-    device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    model = SMT(in_channels=in_channels, maxh=(max_height//16)+1, maxw=(max_width//8)+1, 
-                maxlen=max_len+1, out_categories=out_categories, 
-                padding_token=0, w2i=w2i, i2w=i2w, out_dir=out_dir).to(device)
-    
-    #with torch.no_grad():
-    #    print(max_height, max_width, max_len)
-    #    _ = model(torch.randn((1,1,max_height,max_width), device=device), torch.randint(low=0, high=100,size=(1,max_len), device=device).long())
-    #import sys
-    #sys.exit()
-    summary(model, input_size=[(1,1,max_height,max_width), (1,max_len)], dtypes=[torch.float, torch.long])
-
-    return model
+        

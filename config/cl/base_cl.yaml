@@ -1,0 +1,6 @@
+num_cl_steps: 3
+max_synth_prob: 0.9
+min_synth_prob: 0.2
+increase_steps: 40000
+finetune_steps: 200000
+curriculum_stage_beginning: 2

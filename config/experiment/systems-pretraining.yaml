@@ -1,16 +1,4 @@
-data:
-  data_path: "Data/GrandStaff/partitions_grandstaff/types/"
-  vocab_name: "GrandStaffGlobal"
-  out_dir: "out/GrandStaff/SMTCNN_lines"
-
-model:
-  config_path: "config/model_setup/"
-  max_height: 2376
-  max_width: 1680
-  max_len: 4512
-
-training:
-  metric_to_watch: "val_SER"
-  metric_mode: "min"
-  max_epochs: 10000
-  val_after: 5
+metric_to_watch: "val_SER"
+metric_mode: "min"
+max_epochs: 10000
+val_after: 5

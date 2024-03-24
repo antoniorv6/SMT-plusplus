@@ -128,9 +128,11 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
+outputs/
 Data/GrandStaff/grandstaff_dataset
 Data/FPGrandStaff/fp_grandstaff_dataset
 Data/StringQuartets/quartets_dataset
+Data/PolishScores/polish_corpus_v0_dataset
 Data/PseudoSynthGen/
 wandb/
 weights/
@@ -142,3 +144,4 @@ Data/*.tgz
 lightning_logs/
 Generator/paper_textures/
 perico/*
+.idea/*

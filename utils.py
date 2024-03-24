@@ -27,7 +27,7 @@ def levenshtein(a,b):
     return current[n]
 
 @logger.catch
-def check_and_retrieveVocabulary(YSequences, pathOfSequences, nameOfVoc):
+def check_and_retrieveVocabulary(YSequences, pathOfSequences, nameOfVoc, save=True):
     w2ipath = pathOfSequences + "/" + nameOfVoc + "w2i.npy"
     i2wpath = pathOfSequences + "/" + nameOfVoc + "i2w.npy"
 
@@ -41,11 +41,11 @@ def check_and_retrieveVocabulary(YSequences, pathOfSequences, nameOfVoc):
         w2i = np.load(w2ipath, allow_pickle=True).item()
         i2w = np.load(i2wpath, allow_pickle=True).item()
     else:
-        w2i, i2w = make_vocabulary(YSequences, pathOfSequences, nameOfVoc)
+        w2i, i2w = make_vocabulary(YSequences, pathOfSequences, nameOfVoc, save)
 
     return w2i, i2w
 
-def make_vocabulary(YSequences, pathToSave, nameOfVoc):
+def make_vocabulary(YSequences, pathToSave, nameOfVoc, save=True):
     vocabulary = set()
     for samples in YSequences:
         for element in samples:
@@ -59,8 +59,9 @@ def make_vocabulary(YSequences, pathToSave, nameOfVoc):
     i2w[0] = '<pad>'
 
     #Save the vocabulary
-    np.save(pathToSave + "/" + nameOfVoc + "w2i.npy", w2i)
-    np.save(pathToSave + "/" + nameOfVoc + "i2w.npy", i2w)
+    if save:
+        np.save(pathToSave + "/" + nameOfVoc + "w2i.npy", w2i)
+        np.save(pathToSave + "/" + nameOfVoc + "i2w.npy", i2w)
 
     return w2i, i2w
 
