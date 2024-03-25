@@ -9,9 +9,8 @@ conda-libmamba-solver
 distro
 expecttest
 fastwer
-fire
-gin-config
 gmpy2
+hydra-core
 hypothesis
 ipython
 lightning
@@ -31,6 +30,7 @@ python-dotenv
 rich
 scikit-image
 scikit-learn
+termcolor
 timm
 toolz
 torchaudio
