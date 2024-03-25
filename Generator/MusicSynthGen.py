@@ -133,7 +133,7 @@ class VerovioGenerator():
         return Image.fromarray(np.array(image))
 
     def generate_score(self, num_sys_gen=1, padding=10, 
-                       reduce_ratio=0.35, random_margins=True, check_generated_systems=True, 
+                       reduce_ratio=0.5, random_margins=True, check_generated_systems=True, 
                        cut_height=True, add_texture=False, 
                        include_title=False, include_author=False):
         

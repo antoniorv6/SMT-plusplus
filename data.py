@@ -246,7 +246,7 @@ class CLOMRDataset(OMRIMG2SEQDataset):
             gen_author_title = np.random.rand() > 0.5
             add_texture = np.random.rand() > 0.7
             cut_height = np.random.rand() > 0.4
-            x, y = self.generator.generate_score(num_sys_gen=num_sys_to_gen,
+            x, y = self.generator.generate_score(num_sys_gen=num_sys_to_gen, random_margins=False,
                                                  check_generated_systems=True, cut_height=cut_height, add_texture=add_texture, 
                                                  include_author=gen_author_title, include_title=gen_author_title)
         else:
@@ -259,7 +259,7 @@ class CLOMRDataset(OMRIMG2SEQDataset):
                 num_sys_to_gen = np.random.randint(1, 5)
                 gen_author_title = np.random.rand() > 0.6
                 cut_height = np.random.rand() > 0.5
-                x, y = self.generator.generate_score(num_sys_gen=num_sys_to_gen,
+                x, y = self.generator.generate_score(num_sys_gen=num_sys_to_gen, random_margins=False,
                                                      check_generated_systems=False, cut_height=cut_height, add_texture=add_texture, 
                                                      include_author=gen_author_title, include_title=gen_author_title)
 
