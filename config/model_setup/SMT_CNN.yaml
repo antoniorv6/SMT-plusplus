@@ -1,0 +1,9 @@
+in_channels: 1
+d_model: 256
+dim_ff: 256
+num_dec_layers: 8
+encoder_type: "Standard"
+max_height: 3000
+max_width: 3000
+max_len: 4512
+lr: 1e-4

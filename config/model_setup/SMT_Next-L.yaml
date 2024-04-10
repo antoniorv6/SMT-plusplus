@@ -1,9 +1,0 @@
-in_channels: 1
-d_model: 512
-dim_ff: 512
-num_dec_layers: 8
-encoder_type: "NexT"
-max_height: 2376
-max_width: 3000
-max_len: 4512
-lr: 1e-5
