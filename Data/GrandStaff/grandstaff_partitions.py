@@ -86,9 +86,9 @@ def partitions_by_type():
         for subdir in os.listdir(f"grandstaff_dataset/{author}"):
                 for subsubdir in os.listdir(f"grandstaff_dataset/{author}/{subdir}"):
                     for file in os.listdir(f"grandstaff_dataset/{author}/{subdir}/{subsubdir}"):
-                        if "original" in file and file.endswith(".krn"):
+                        if "original" in file and file.endswith(".ekrn"):
                             original_excerpts.append(f"grandstaff_dataset/{author}/{subdir}/{subsubdir}/{file}")
-                        elif file.endswith(".krn"):
+                        elif file.endswith(".ekrn"):
                             augmented_excerpts.append(f"grandstaff_dataset/{author}/{subdir}/{subsubdir}/{file}")
     
     augmented_train, augmented_val = train_test_split(augmented_excerpts, test_size=0.1)

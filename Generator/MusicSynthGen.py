@@ -28,7 +28,7 @@ def rint(start, end):
 def erase_numbers_in_tokens_with_equal(tokens):
        return [re.sub(r'(?<=\=)\d+', '', token) for token in tokens]
 
-def load_data_from_krn(path, base_folder="GrandStaff", krn_type="bekrn"):
+def load_data_from_krn(path, base_folder="GrandStaff", krn_type="ekrn", tokenization_mode="standard"):
     y = []
     with open(path) as datafile:
         lines = datafile.readlines()
@@ -41,8 +41,9 @@ def load_data_from_krn(path, base_folder="GrandStaff", krn_type="bekrn"):
                     krn = krn.replace("\t", " <t> ")
                     krn = krn.replace("\n", " <b> ")
                     krn = krn.replace("\n", " <b> ")
-                    krn = krn.replace("·", "")
                     krn = krn.replace("@", "")
+                    if tokenization_mode == "standard":
+                        krn = krn.replace("·", "")
                     krn = krn.replace("/", "")
                     krn = krn.replace("\\", "")
                     krn = krn.split(" ")
@@ -55,10 +56,11 @@ def load_data_from_krn(path, base_folder="GrandStaff", krn_type="bekrn"):
     return y
 
 class VerovioGenerator():
-    def __init__(self, gt_samples_path, textures_path="Generator/paper_textures", fixed_number_systems=False) -> None:
+    def __init__(self, gt_samples_path, textures_path="Generator/paper_textures", fixed_number_systems=False, tokenization_method="standard") -> None:
         self.tk = verovio.toolkit()
         verovio.enableLog(verovio.LOG_OFF)
         self.fixed_systems = fixed_number_systems
+        self.tokenization_method = tokenization_method
         self.beats = self.load_beats(gt_samples_path)
         self.title_generator = RandomSentence()
         self.textures = [os.path.join(textures_path, f) for f in os.listdir(textures_path) if os.path.isfile(os.path.join(textures_path, f))]
@@ -66,7 +68,7 @@ class VerovioGenerator():
     def load_beats(self, path):
         """Load beats from the provided path."""
         beats = {}
-        data = load_data_from_krn(path)
+        data = load_data_from_krn(path, tokenization_mode=self.tokenization_method)
         for sample in data:
             if sample.count('*-') == 2:
                 beat_marker = re.search(r'\*M\S*', " ".join(sample))
@@ -131,6 +133,77 @@ class VerovioGenerator():
         #image.motion_blur(radius=blur1, sigma=blur2, angle=blur3)
         
         return Image.fromarray(np.array(image))
+    
+    def texturize_image(self, x):
+        texture = Image.open(random.choice(self.textures))
+        img_width, img_height = x.shape[1], x.shape[0]
+        #Check if the texture is smaller than the image. If so, resize it to the image size
+        if texture.size[0] < img_width or texture.size[1] < img_height:
+            texture = texture.resize((img_width, img_height))
+        
+        x = self.inkify_image(x)
+        x = np.array(x)
+        music_image = Image.fromarray(x)
+        left = random.randint(0, texture.size[0] - img_width)
+        top = random.randint(0, texture.size[1] - img_height)
+        texture = texture.crop((left, top, left + img_width, top + img_height))
+        inverted_music_image = ImageOps.invert(music_image.convert('RGB'))
+        mask = inverted_music_image.convert("L")
+        texture.paste(music_image, mask=mask)
+        x = texture#cv2.cvtColor(np.array(texture), cv2.COLOR_RGB2BGR)
+        
+        return x
+
+    def generate_system(self, reduce_ratio=0.5, add_texture=False):
+        
+        num_sys_gen = 1
+        
+        generated_systems = np.inf
+        while generated_systems != num_sys_gen:
+            length = 0
+            while length < num_sys_gen:
+                beat = random.choice(list(self.beats.keys()))
+                systems = self.beats[beat]
+                length = len(systems)
+            
+            sequence = random.choice(systems)
+            krnseq = "".join(sequence[:-1]).replace("@", "").replace("<s>", " ").replace("<b>", "\n").replace("<t>", "\t").replace("**ekern", "**kern")
+            
+            self.tk.loadData(krnseq)
+            self.tk.setOptions({"pageWidth": 2100, "footer": 'none', 
+                                'barLineWidth': rfloat(0.3, 0.8), 'beamMaxSlope': rfloat(10,20), 
+                                'staffLineWidth': rfloat(0.1, 0.3), 'spacingStaff': rfloat(1, 12)})
+            
+            self.tk.getPageCount()
+            svg = self.tk.renderToSVG()
+            svg = svg.replace("overflow=\"inherit\"", "overflow=\"visible\"")
+
+            generated_systems = self.count_class_occurrences(svg_file=svg, class_name='grpSym')
+        
+        pngfile = svg2png(bytestring=svg, background_color='white')
+        pngfile = cv2.imdecode(np.frombuffer(pngfile, np.uint8), -1)
+
+        height = self.find_image_cut(pngfile)
+        pngfile = pngfile[:height + 10, :]
+
+        x = pngfile
+
+        if add_texture == True:
+            x = self.texturize_image(x)
+        else:
+            x = np.array(x)
+        
+        x = cv2.cvtColor(np.array(x), cv2.COLOR_BGR2RGB)
+        
+        width = int(np.ceil(pngfile.shape[1] * reduce_ratio))
+        height = int(np.ceil(pngfile.shape[0] * reduce_ratio))
+        x = cv2.resize(x, (width, height))
+
+        if self.tokenization_method != "standard":
+            sequence = "".join(sequence).replace("<s>", " <s> ").replace("<b>", " <b> ").replace("<t>", " <t> ").replace("·", " ").split(" ")
+
+        return x, ['<bos>'] + sequence[4:-1] + ['<eos>']
+
 
     def generate_score(self, num_sys_gen=1, padding=10, 
                        reduce_ratio=0.5, random_margins=True, check_generated_systems=True, 
@@ -160,11 +233,14 @@ class VerovioGenerator():
             sequence = []
 
             if n_sys_generate > 1:
-                sequence = ['=' if token == '==' else token for token in random_systems[0][:-5]]
+                first_seq = "".join(random_systems[0]).replace("<s>", " <s> ").replace("<b>", " <b> ").replace("<t>", " <t> ").split(" ")
+                sequence = ['=' if token == '==' else token for token in first_seq[:-5]]
                 for seq in random_systems[1:-1]:
+                    seq = "".join(seq).replace("<s>", " <s> ").replace("<b>", " <b> ").replace("<t>", " <t> ").split(" ")
                     sequence += self.filter_system_continuation(seq[4:-5])
-
-                sequence += self.filter_system_continuation(random_systems[-1][4:])
+                
+                last_seq = "".join(random_systems[-1]).replace("<s>", " <s> ").replace("<b>", " <b> ").replace("<t>", " <t> ").split(" ")
+                sequence += self.filter_system_continuation(last_seq[4:])
             else:
                 sequence = random_systems[0]
             
@@ -172,7 +248,7 @@ class VerovioGenerator():
             preseq += f"!!!OTL:{self.title_generator.sentence()}\n" if include_title else ""
             preseq += f"!!!COM:{names.get_full_name()}\n" if include_author else ""
             
-            krnseq = preseq + "".join(sequence[:-1]).replace("<s>", " ").replace("<b>", "\n").replace("<t>", "\t").replace("**ekern_1.0", "**kern")
+            krnseq = preseq + "".join(sequence[:-1]).replace("@", "").replace("<s>", " ").replace("<b>", "\n").replace("<t>", "\t").replace("**ekern", "**kern")
 
             #with open("test.krn", "w") as krnfile:
             #    krnfile.write(krnseq)
@@ -183,13 +259,11 @@ class VerovioGenerator():
             
             self.tk.loadData(krnseq)
             
-            width = random.choice([2100, 3000])
-            
             if random_margins:
-                self.tk.setOptions({"pageWidth": width, "pageMarginLeft":margins[0], "pageMarginRight":margins[1], "pageMarginTop":margins[2], "pageMarginBottom":margins[3], 
+                self.tk.setOptions({"pageWidth": 2100, "pageMarginLeft":margins[0], "pageMarginRight":margins[1], "pageMarginTop":margins[2], "pageMarginBottom":margins[3], 
                                 "footer": 'none', 'barLineWidth': rfloat(0.3, 0.8), 'beamMaxSlope': rfloat(10,20), 'staffLineWidth': rfloat(0.1, 0.3), 'spacingStaff': rfloat(1, 12)})
             else:
-                self.tk.setOptions({"pageWidth": width, "footer": 'none', 'barLineWidth': rfloat(0.3, 0.8), 'beamMaxSlope': rfloat(10,20), 'staffLineWidth': rfloat(0.1, 0.3), 'spacingStaff': rfloat(1, 12)})
+                self.tk.setOptions({"pageWidth": 2100, "footer": 'none', 'barLineWidth': rfloat(0.3, 0.8), 'beamMaxSlope': rfloat(10,20), 'staffLineWidth': rfloat(0.1, 0.3), 'spacingStaff': rfloat(1, 12)})
 
             self.tk.getPageCount()
             svg = self.tk.renderToSVG()
@@ -234,5 +308,8 @@ class VerovioGenerator():
         width = int(np.ceil(pngfile.shape[1] * reduce_ratio))
         height = int(np.ceil(pngfile.shape[0] * reduce_ratio))
         x = cv2.resize(x, (width, height))
+
+        if self.tokenization_method != "standard":
+            sequence = "".join(sequence).replace("<s>", " <s> ").replace("<b>", " <b> ").replace("<t>", " <t> ").replace("·", " ").split(" ")
 
         return x, ['<bos>'] + sequence[4:-1] + ['<eos>']

@@ -1,5 +1,3 @@
-import gin
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -198,7 +196,7 @@ class Decoder(nn.Module):
     def __init__(self, d_model, dim_ff, n_layers, maxlen, out_categories, attention_window=100) -> None:
         super(Decoder, self).__init__()
         self.dropout = nn.Dropout(0.1)
-        self.dec_attn_win = maxlen
+        self.dec_attn_win = attention_window
         self.positional_1D = PositionalEncoding1D(d_model, maxlen)
 
         self.decoder = DecoderStack(num_dec_layers=n_layers, d_model=d_model, dim_ff=dim_ff)

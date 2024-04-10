@@ -132,6 +132,7 @@ dmypy.json
 
 outputs/
 Data/GrandStaff/grandstaff_dataset
+Data/GrandStaff/grandstaff_dataset_old
 Data/FPGrandStaff/fp_grandstaff_dataset
 Data/StringQuartets/quartets_dataset
 Data/PolishScores/polish_corpus_v0_dataset

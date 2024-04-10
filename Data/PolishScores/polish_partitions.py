@@ -1,45 +1,76 @@
 import os
-from sklearn.model_selection import train_test_split, KFold
+import numpy as np
+from sklearn.model_selection import StratifiedKFold, train_test_split
 
-def partitions_by_excerpt():
-    authors = os.listdir("polish_corpus_v0_dataset")
-    os.makedirs("partitions_polishscores/excerpts", exist_ok=True)
-    excerpts = []
-    for author in authors:
-        excerpts.append(f"polish_corpus_v0_dataset/{author}")
+def prepare_data_for_cross_validation(data):
+    """
+    Prepare the dataset for stratified K-Fold cross-validation.
+
+    :param data: Dictionary with folder names as keys and lists of file paths as values.
+    :return: A tuple of samples and labels ready for cross-validation.
+    """
+    samples = []
+    labels = []
+    for folder_name, file_paths in data.items():
+        samples.extend(file_paths)
+        labels.extend([folder_name] * len(file_paths))
+    return samples, labels
+
+def stratified_k_fold_with_validation(samples, labels, n_splits=5, validation_size=0.2, folder="polish_partitions/excerpts/"):
+    """
+    Perform stratified K-Fold cross-validation with a validation set.
+
+    :param samples: List of all samples (file paths in this case).
+    :param labels: List of labels corresponding to each sample.
+    :param n_splits: Number of folds.
+    :param validation_size: Proportion of the training set to be used as validation.
+    """
+    skf = StratifiedKFold(n_splits=n_splits)
     
-    kf = KFold(n_splits=5)
-
-    fold = 0
-
-    for train_indices, test_indices in kf.split(excerpts):
-        os.makedirs(f"partitions_polishscores/excerpts/fold_{fold}", exist_ok=True)
-        train_data = [excerpts[i] for i in train_indices]
-        test_data = [excerpts[i] for i in test_indices]
-        train_data, val_data = train_test_split(train_data,test_size=0.15)
-
-        with open(f"partitions_polishscores/excerpts/fold_{fold}/train.txt", "w") as trainfile:
-            for path in train_data:
-                for file in os.listdir(path):
-                    if file.endswith(".ekrn"):
-                        trainfile.write(f"{path}/{file}\n")
+    for fold, (train_idx, test_idx) in enumerate(skf.split(samples, labels)):
+        # Splitting the data into training/testing sets for the current fold
+        X_train, X_test = [samples[i] for i in train_idx], [samples[i] for i in test_idx]
+        y_train, y_test = [labels[i] for i in train_idx], [labels[i] for i in test_idx]
         
-        with open(f"partitions_polishscores/excerpts/fold_{fold}/val.txt", "w") as valfile:
-            for path in val_data:
-                for file in os.listdir(path):
-                    if file.endswith(".ekrn"):
-                        valfile.write(f"{path}/{file}\n")
-
-        with open(f"partitions_polishscores/excerpts/fold_{fold}/test.txt", "w") as testfile:
-            for path in test_data:
-                for file in os.listdir(path):
-                    if file.endswith(".ekrn"):
-                        testfile.write(f"{path}/{file}\n")
+        # Further split the training set to create a validation set
+        X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=validation_size, stratify=y_train)
         
-        fold += 1
+        os.makedirs(f"{folder}fold_{fold}", exist_ok=True)
+        
+        with open(f"{folder}fold_{fold}/train.txt", "w") as f:
+            f.write("\n".join(X_train))
+        
+        with open(f"{folder}fold_{fold}/val.txt", "w") as f:
+            f.write("\n".join(X_val))
+        
+        with open(f"{folder}fold_{fold}/test.txt", "w") as f:
+            f.write("\n".join(X_test))
+        
+        print(f"Fold {fold+1}:")
+        print(f"Training samples: {len(X_train)}, Validation samples: {len(X_val)}, Testing samples: {len(X_test)}")
+        # Here, you would process your training, validation, and testing sets
 
-def main():
-    partitions_by_excerpt()
+def load_data_from_folders(root_dir):
+    """
+    Load data from subfolders and ensure each folder has enough samples.
+    Each subfolder represents a different class or category.
 
-if __name__ == "__main__":
-    main()
+    :param root_dir: Root directory containing subfolders with .ekrn files.
+    :return: A dictionary with folder names as keys and lists of file paths as values.
+    """
+    data = {}
+    for folder_name in os.listdir(root_dir):
+        folder_path = os.path.join(root_dir, folder_name)
+        if os.path.isdir(folder_path):
+            file_paths = [os.path.join(folder_path, f) for f in os.listdir(folder_path) if f.endswith('.ekrn')]
+            # Ensure each folder has a minimum number of samples, let's say at least 3 for this example
+            if len(file_paths) >= 3:
+                data[folder_name] = file_paths
+    return data
+
+# Example usage
+os.makedirs("polish_partitions/excerpts", exist_ok=True)
+root_dir = 'polish_corpus_v0_dataset'
+data = load_data_from_folders(root_dir)
+samples, labels = prepare_data_for_cross_validation(data)
+stratified_k_fold_with_validation(samples, labels, n_splits=5)

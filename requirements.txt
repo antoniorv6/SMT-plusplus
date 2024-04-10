@@ -3,10 +3,6 @@ archspec
 astunparse
 brotli
 cairosvg
-conda-build
-conda-content-trust
-conda-libmamba-solver
-distro
 expecttest
 fastwer
 gmpy2

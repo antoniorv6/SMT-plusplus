@@ -17,8 +17,10 @@ class DataConfig:
     vocab_name:str
     krn_type: str 
     reduce_ratio: float
+    fold: int
     synth_path: str = ""
     base_folder: str = ""
+    tokenization_mode: str = "standard"
 
 @dataclass
 class CLConfig:
@@ -40,6 +42,7 @@ class SMTConfig:
     max_height: int
     max_width: int
     max_len: int
+    lr: float
 
 @dataclass
 class Config:

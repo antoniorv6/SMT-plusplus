@@ -11,6 +11,9 @@ from data_augmentation.data_augmentation import augment, convert_img_to_tensor
 from torch.utils.data import Dataset
 from Generator.MusicSynthGen import VerovioGenerator
 
+def erase_whitespace_elements(tokens):
+    return [token for token in tokens if token != ""]
+
 def load_set(path, base_folder="GrandStaff", fileformat="jpg", krn_type="bekrn", reduce_ratio=0.5):
     x = []
     y = []
@@ -106,12 +109,15 @@ class OMRIMG2SEQDataset(Dataset):
     def get_i2w(self):
         return self.i2w
     
-    def preprocess_gt(self, Y):
+    def preprocess_gt(self, Y, tokenization_method="standard"):
         for idx, krn in enumerate(Y):
             krnlines = []
             krn = "".join(krn)
             krn = krn.replace(" ", " <s> ")
-            krn = krn.replace("·", "")
+            if tokenization_method == "standard":
+                krn = krn.replace("·", "")
+            else:
+                krn = krn.replace("·", " ")
             krn = krn.replace("@", "")
             krn = krn.replace("/", "")
             krn = krn.replace("\\", "")
@@ -128,7 +134,7 @@ class GrandStaffSingleSystem(OMRIMG2SEQDataset):
         self.teacher_forcing_error_rate = 0.2
         self.x, self.y = load_set(data_path, base_folder=config.base_folder, 
                                   fileformat=config.file_format, krn_type=config.krn_type, reduce_ratio=config.reduce_ratio)
-        self.y = self.preprocess_gt(self.y)
+        self.y = self.preprocess_gt(self.y, tokenization_method=config.tokenization_mode)
         self.num_sys_gen = 1
         self.fixed_systems_num = False
     
@@ -144,7 +150,7 @@ class GrandStaffSingleSystem(OMRIMG2SEQDataset):
         else:
             x = convert_img_to_tensor(x)
         
-        y = torch.from_numpy(np.asarray([self.w2i[token] for token in y]))
+        y = torch.from_numpy(np.asarray([self.w2i[token] for token in erase_whitespace_elements(y)]))
         decoder_input = self.apply_teacher_forcing(y)
         return x, decoder_input, y
     
@@ -153,19 +159,18 @@ class GrandStaffSingleSystem(OMRIMG2SEQDataset):
 
 class SyntheticOMRDataset(OMRIMG2SEQDataset):
     def __init__(self, data_path, number_of_systems=1, teacher_forcing_perc=0.2, reduce_ratio=0.5, 
-                 dataset_length=40000, include_texture=False, augment=False, fixed_systems=False) -> None:
+                 dataset_length=40000, include_texture=False, augment=False, fixed_systems=False, tokenization_mode="standard") -> None:
         super().__init__(teacher_forcing_perc, augment)
-        self.generator = VerovioGenerator(gt_samples_path=data_path, fixed_number_systems=fixed_systems)
+        self.generator = VerovioGenerator(gt_samples_path=data_path, fixed_number_systems=fixed_systems, tokenization_method=tokenization_mode)
         self.num_sys_gen = number_of_systems
         self.dataset_len = dataset_length
         self.reduce_ratio = reduce_ratio
         self.include_texture = include_texture
+        self.tokenization_mode = tokenization_mode
     
     def __getitem__(self, index):
         
-        x, y = self.generator.generate_score(num_sys_gen=self.num_sys_gen, reduce_ratio=self.reduce_ratio,
-                                             check_generated_systems=True, random_margins=False, add_texture=self.include_texture,
-                                             include_title=False, include_author=False)
+        x, y = self.generator.generate_system()
 
         if self.augment:
             x = augment(x)
@@ -186,9 +191,9 @@ class PretrainingLinesDataset(LightningDataModule):
         self.vocab_name = config.vocab_name
         self.batch_size = batch_size
         self.num_workers = num_workers
-        self.train_dataset = SyntheticOMRDataset(data_path=f"{self.data_path}/train.txt", augment=True, fixed_systems=True)
-        self.val_dataset = SyntheticOMRDataset(data_path=f"{self.data_path}/val.txt", dataset_length=1000, augment=False, fixed_systems=True)
-        self.test_dataset = SyntheticOMRDataset(data_path=f"{self.data_path}/test.txt", dataset_length=1000, augment=False, fixed_systems=True)
+        self.train_dataset = SyntheticOMRDataset(data_path=f"{self.data_path}/train.txt", augment=True, fixed_systems=True, tokenization_mode=config.tokenization_mode)
+        self.val_dataset = SyntheticOMRDataset(data_path=f"{self.data_path}/val.txt", dataset_length=1000, augment=False, fixed_systems=True, tokenization_mode=config.tokenization_mode)
+        self.test_dataset = SyntheticOMRDataset(data_path=f"{self.data_path}/test.txt", dataset_length=1000, augment=False, fixed_systems=True, tokenization_mode=config.tokenization_mode)
         w2i, i2w = check_and_retrieveVocabulary([self.train_dataset.get_gt(), self.val_dataset.get_gt(), self.test_dataset.get_gt()], "vocab/", f"{self.vocab_name}")#
     
         self.train_dataset.set_dictionaries(w2i, i2w)
@@ -210,8 +215,8 @@ class CLOMRDataset(OMRIMG2SEQDataset):
         super().__init__(teacher_forcing_perc, augment)
         self.x, self.y = load_set(f"{data_config.data_path}{data_config.fold}/train.txt", base_folder=data_config.base_folder, fileformat=data_config.file_format, 
                                   krn_type=data_config.krn_type, reduce_ratio=data_config.reduce_ratio)
-        self.generator = VerovioGenerator(gt_samples_path=f"{data_config.synth_path}/train.txt", fixed_number_systems=False)
-        self.y = self.preprocess_gt(self.y)
+        self.generator = VerovioGenerator(gt_samples_path=f"{data_config.synth_path}/train.txt", fixed_number_systems=False, tokenization_method=data_config.tokenization_mode)
+        self.y = self.preprocess_gt(self.y, tokenization_method=data_config.tokenization_mode)
         self.num_sys_gen = 1
 
         # CL parameters
@@ -223,6 +228,7 @@ class CLOMRDataset(OMRIMG2SEQDataset):
         self.num_cl_steps = cl_config.num_cl_steps
         self.max_cl_steps = self.increase_steps * self.num_cl_steps
         self.curriculum_stage_beginning = cl_config.curriculum_stage_beginning
+        self.tokenization_mode = data_config.tokenization_mode
     
     def set_logger(self, logger):
         self.logger = logger
@@ -243,24 +249,23 @@ class CLOMRDataset(OMRIMG2SEQDataset):
             probability = 1
             num_sys_to_gen = np.random.randint(1, stage)
             #Set the variable gen_author_title to True if a random number if above 0.5
+            add_texture = np.random.rand() > 0.3
             gen_author_title = np.random.rand() > 0.5
-            add_texture = np.random.rand() > 0.7
-            cut_height = np.random.rand() > 0.4
-            x, y = self.generator.generate_score(num_sys_gen=num_sys_to_gen, random_margins=False,
+            cut_height = np.random.rand() > 0.7
+            x, y = self.generator.generate_score(num_sys_gen=num_sys_to_gen,
                                                  check_generated_systems=True, cut_height=cut_height, add_texture=add_texture, 
                                                  include_author=gen_author_title, include_title=gen_author_title)
         else:
             probability = max(self.min_synth_prob, self.linear_scheduler_synthetic())
             if np.random.random() > probability:
                 x = self.x[index]
-                y = self.y[index]
+                y = erase_whitespace_elements(self.y[index])
             else:
-                add_texture = np.random.rand() > 0.7
-                num_sys_to_gen = np.random.randint(1, 5)
-                gen_author_title = np.random.rand() > 0.6
-                cut_height = np.random.rand() > 0.5
-                x, y = self.generator.generate_score(num_sys_gen=num_sys_to_gen, random_margins=False,
-                                                     check_generated_systems=False, cut_height=cut_height, add_texture=add_texture, 
+                num_sys_to_gen = np.random.randint(1, 4)
+                gen_author_title = np.random.rand() > 0.5
+                cut_height = np.random.rand() > 0.7
+                x, y = self.generator.generate_score(num_sys_gen=num_sys_to_gen,
+                                                     check_generated_systems=False, cut_height=cut_height, add_texture=True, 
                                                      include_author=gen_author_title, include_title=gen_author_title)
 
         if self.augment:

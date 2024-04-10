@@ -30,8 +30,6 @@ def augment(image):
             transforms.RandomApply([ElasticDistortion(grid=(elastic_dist_kernel, elastic_dist_kernel), magnitude=(magnitude_w, magnitude_h), min_sep=(1,1))], p=0.2),
             transforms.RandomApply([RandomTransform(16)], p=0.2),
             transforms.RandomApply([dilation_erosion], p=0.2),
-            transforms.RandomApply([BrighnessAjust(br_factor)], p=0.2),
-            transforms.RandomApply([ContrastAdjust(ctr_factor)], p=0.2),
             transforms.Grayscale(),
             transforms.ToTensor()
         ]
