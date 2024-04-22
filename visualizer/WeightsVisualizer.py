@@ -64,14 +64,14 @@ class SMTWeightsVisualizer():
         plt.register_cmap(cmap=cmap)
 
     def reset(self, img, ground_truth, attention_weights):
-        fig = plt.figure(figsize=(50, 30))
-        gs = matplotlib.gridspec.GridSpec(nrows=30, ncols=9)
+        fig = plt.figure(figsize=(50, 25))
+        gs = matplotlib.gridspec.GridSpec(nrows=25, ncols=9)
         plt.axis('off')
         plt.suptitle('Sample test')
         x1 = 5
         x15 = 2
-        x2 = 7
-        text_size = 13
+        x2 = 8
+        text_size = 20
         windows_size = 100  
 
         anchor_x, anchor_y = (0.01, 0.99)   
@@ -86,14 +86,14 @@ class SMTWeightsVisualizer():
         ax_cbar.get_xaxis().set_visible(False)
         ax_cbar.axis('off') 
 
-        ax_gt = plt.subplot(gs[:22, x1:x2]) # modified for self-attention
-        ax_gt.get_yaxis().set_visible(False)
-        ax_gt.get_xaxis().set_visible(False)
-        gt_text_0 = ax_gt.text(anchor_x, anchor_y, ground_truth, family='monospace', size=text_size, va="top")
-        #ax_gt.text(0.51, 0.99, gt_list)
-        ax_gt.title.set_text('Ground truth')
+        #ax_gt = plt.subplot(gs[:22, x1:x2]) # modified for self-attention
+        #ax_gt.get_yaxis().set_visible(False)
+        #ax_gt.get_xaxis().set_visible(False)
+        #gt_text_0 = ax_gt.text(anchor_x, anchor_y, ground_truth, family='monospace', size=text_size, va="top")
+        ##ax_gt.text(0.51, 0.99, gt_list)
+        #ax_gt.title.set_text('Ground truth')
     #
-        ax_pred = plt.subplot(gs[:22, 7:])
+        ax_pred = plt.subplot(gs[:22, x1:x2])
         ax_pred.get_yaxis().set_visible(False)
         ax_pred.get_xaxis().set_visible(False)
         self.pred_plot = ax_pred.text(anchor_x, anchor_y, "", size=text_size, family='monospace', va='top')

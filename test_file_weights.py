@@ -2,20 +2,23 @@ import cv2
 import torch
 import numpy as np
 from rich import progress
+import hydra
 from SMT import SMT
 from visualizer.WeightsVisualizer import SMTWeightsVisualizer
 from data_augmentation.data_augmentation import convert_img_to_tensor
+from config_typings import Config
 
-def main():
+@hydra.main(version_base=None, config_path="config")
+def main(config:Config):
 
-    img_path = "3r.jpg"
-    model_weights = "weights/polish/SMT_NexT_ekern_fold_0.ckpt"
+    img_path = "wallstreet.p_002.png"
+    model_weights = "weights/fp_grandstaff/SMT_Next_e_fold_0.ckpt"
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     visualizer_module = SMTWeightsVisualizer(frames_path="frames/", animation_path="animation/")
     
     img = cv2.imread(img_path)
-    img = cv2.resize(img, (int(img.shape[1] * 0.4), int(img.shape[1] * 0.4)))
+    img = cv2.resize(img, (int(img.shape[1] * 0.5), int(img.shape[1] * 0.5)))
     img_tensor = convert_img_to_tensor(img)
     
     model = SMT.load_from_checkpoint(model_weights)
@@ -29,7 +32,7 @@ def main():
     predicted_sequence = torch.from_numpy(np.asarray([w2i['<bos>']])).to(device).unsqueeze(0)
     
     with torch.no_grad():
-        for i in progress.track(range(model.maxlen)):
+        for i in progress.track(range(512)):#progress.track(range(model.maxlen)):
             output, predictions, cache, weights = model.forward_decoder(encoder_output, predicted_sequence.long(), cache=cache)
             predicted_token = torch.argmax(predictions[:, :, -1]).cpu().detach().item()
             predicted_sequence = torch.cat([predicted_sequence, torch.argmax(predictions[:, :, -1], dim=1, keepdim=True)], dim=1)

@@ -39,6 +39,9 @@ class SMT(L.LightningModule):
 
         self.maxlen = config.max_len
 
+        #self(torch.randn(1,1,config.max_height,config.max_width).to(torch.device("cuda")), torch.randint(0, len(w2i), (1,config.max_len)).to(torch.device("cuda")))
+        #import sys
+        #sys.exit()
         summary(self, input_size=[(1,1,config.max_height,config.max_width), (1,config.max_len)], 
                 dtypes=[torch.float, torch.long])
 

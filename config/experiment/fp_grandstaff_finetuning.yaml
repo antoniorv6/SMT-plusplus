@@ -1,0 +1,4 @@
+metric_to_watch: "val_SER"
+metric_mode: "min"
+max_epochs: 100000
+val_after: 500

@@ -39,6 +39,8 @@ def main(config:Config):
     train_dataset.set_trainer_data(trainer)
     
     trainer.fit(model, datamodule=data_module)
+    
+    model = SMT.load_from_checkpoint(checkpointer.best_model_path, config=config.model_setup)
 
     trainer.test(model, datamodule=data_module)
 
