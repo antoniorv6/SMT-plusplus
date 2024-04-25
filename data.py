@@ -127,9 +127,10 @@ class OMRIMG2SEQDataset(Dataset):
                     
             Y[idx] = self.erase_numbers_in_tokens_with_equal(['<bos>'] + krn[4:-1] + ['<eos>'])
         return Y
-    
+
 class GrandStaffSingleSystem(OMRIMG2SEQDataset):
-    def __init__(self, data_path, config:DataConfig, augment=False) -> None:
+    def __init__(self, data_path, config: DataConfig, augment=False) -> None:
+        super().__init__(augment)
         self.augment = augment
         self.teacher_forcing_error_rate = 0.2
         self.x, self.y = load_set(data_path, base_folder=config.base_folder, 
@@ -137,8 +138,9 @@ class GrandStaffSingleSystem(OMRIMG2SEQDataset):
         self.y = self.preprocess_gt(self.y, tokenization_method=config.tokenization_mode)
         self.num_sys_gen = 1
         self.fixed_systems_num = False
-    
-    def erase_numbers_in_tokens_with_equal(self, tokens):
+
+    @staticmethod
+    def erase_numbers_in_tokens_with_equal(tokens):
         return [re.sub(r'(?<=\=)\d+', '', token) for token in tokens]
 
     def __getitem__(self, index):
@@ -229,6 +231,8 @@ class CLOMRDataset(OMRIMG2SEQDataset):
         self.max_cl_steps = self.increase_steps * self.num_cl_steps
         self.curriculum_stage_beginning = cl_config.curriculum_stage_beginning
         self.tokenization_mode = data_config.tokenization_mode
+
+        #self.binarize = data_config.binarize
     
     def set_logger(self, logger):
         self.logger = logger
