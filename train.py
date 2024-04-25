@@ -7,6 +7,7 @@ import torch
 
 from SMT import SMT
 
+from loguru import logger
 from data import GraphicCLDataModule
 from lightning.pytorch import Trainer
 from lightning.pytorch.callbacks import ModelCheckpoint
@@ -21,7 +22,13 @@ def main(config:Config):
     
     train_dataset = data_module.train_dataset
 
-    model = SMT.load_from_checkpoint(config.experiment.pretrain_weights, config=config.model_setup)
+    if config.experiment.pretrain_weights:
+        logger.info(f"Loading pretrain weights from {config.experiment.pretrain_weights}")
+        model = SMT.load_from_checkpoint(config.experiment.pretrain_weights, config=config.model_setup)
+    else:
+        logger.warning("No pretrain weights provided, training from scratch")
+        model = SMT(config=config.model_setup, w2i=train_dataset.w2i, i2w=train_dataset.i2w)
+        
     
     wandb_logger = WandbLogger(project='FP_SMT', group=f"{config.metadata.corpus_name}", name=f"{config.metadata.model_name}", log_model=False)
 
