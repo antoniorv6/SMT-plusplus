@@ -114,11 +114,17 @@ class OMRIMG2SEQDataset(Dataset):
             krnlines = []
             krn = "".join(krn)
             krn = krn.replace(" ", " <s> ")
+            
+            if tokenization_method == "bekern":
+                krn = krn.replace("·", " ")
+                krn = krn.replace("@", " ")
+            if tokenization_method == "ekern":
+                krn = krn.replace("·", " ")
+                krn = krn.replace("@", "")
             if tokenization_method == "standard":
                 krn = krn.replace("·", "")
-            else:
-                krn = krn.replace("·", " ")
-            krn = krn.replace("@", "")
+                krn = krn.replace("@", "")
+                
             krn = krn.replace("/", "")
             krn = krn.replace("\\", "")
             krn = krn.replace("\t", " <t> ")

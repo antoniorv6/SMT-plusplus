@@ -41,9 +41,13 @@ def load_data_from_krn(path, base_folder="GrandStaff", krn_type="ekrn", tokeniza
                     krn = krn.replace("\t", " <t> ")
                     krn = krn.replace("\n", " <b> ")
                     krn = krn.replace("\n", " <b> ")
-                    krn = krn.replace("@", "")
+                    
+                    if tokenization_mode == "ekern":
+                        krn = krn.replace("@", "")
                     if tokenization_mode == "standard":
                         krn = krn.replace("·", "")
+                        krn = krn.replace("@", "")
+
                     krn = krn.replace("/", "")
                     krn = krn.replace("\\", "")
                     krn = krn.split(" ")
@@ -199,8 +203,11 @@ class VerovioGenerator():
         height = int(np.ceil(pngfile.shape[0] * reduce_ratio))
         x = cv2.resize(x, (width, height))
 
-        if self.tokenization_method != "standard":
+        if self.tokenization_method == "ekern":
             sequence = "".join(sequence).replace("<s>", " <s> ").replace("<b>", " <b> ").replace("<t>", " <t> ").replace("·", " ").split(" ")
+        
+        if self.tokenization_method == "bekern":
+            sequence = "".join(sequence).replace("<s>", " <s> ").replace("<b>", " <b> ").replace("<t>", " <t> ").replace("·", " ").replace("@", " ").split(" ")
 
         return x, ['<bos>'] + sequence[4:-1] + ['<eos>']
 
@@ -309,7 +316,11 @@ class VerovioGenerator():
         height = int(np.ceil(pngfile.shape[0] * reduce_ratio))
         x = cv2.resize(x, (width, height))
 
-        if self.tokenization_method != "standard":
+        if self.tokenization_method == "ekern":
             sequence = "".join(sequence).replace("<s>", " <s> ").replace("<b>", " <b> ").replace("<t>", " <t> ").replace("·", " ").split(" ")
+        
+        if self.tokenization_method == "bekern":
+            sequence = "".join(sequence).replace("<s>", " <s> ").replace("<b>", " <b> ").replace("<t>", " <t> ").replace("·", " ").replace("@", " ").split(" ")
+            
 
         return x, ['<bos>'] + sequence[4:-1] + ['<eos>']

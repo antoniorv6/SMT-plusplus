@@ -1,6 +1,7 @@
 import os
 
 import hydra
+import omegaconf
 from config_typings import Config
 
 import torch
@@ -22,10 +23,10 @@ def main(config:Config):
     
     train_dataset = data_module.train_dataset
 
-    if config.experiment.pretrain_weights:
-        logger.info(f"Loading pretrain weights from {config.experiment.pretrain_weights}")
+    try:
         model = SMT.load_from_checkpoint(config.experiment.pretrain_weights, config=config.model_setup)
-    else:
+        logger.info(f"Loaded pretrain weights from {config.experiment.pretrain_weights}")
+    except omegaconf.errors.ConfigAttributeError:
         logger.warning("No pretrain weights provided, training from scratch")
         model = SMT(config=config.model_setup, w2i=train_dataset.w2i, i2w=train_dataset.i2w)
         
