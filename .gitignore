@@ -137,6 +137,7 @@ Data/FPGrandStaff/fp_grandstaff_dataset
 Data/StringQuartets/quartets_dataset
 Data/PolishScores/polish_corpus_v0_dataset
 Data/PolishScores/polish_corpus_v1_dataset
+Data/PolishScores/polish_corpus_v2_dataset
 Data/PolishScores/polish_by_period
 Data/PseudoSynthGen/
 wandb/

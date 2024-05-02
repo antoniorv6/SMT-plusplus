@@ -1,9 +1,9 @@
 data_path: "Data/PolishScores/partitions_polishscores/excerpts/fold_"
 synth_path: "Data/GrandStaff/partitions_grandstaff/types/"
-vocab_name: "PolishGlobal_Ekern"
+vocab_name: "Polish_BeKern"
 out_dir: "out/GrandStaff/SMTCNN_lines"
 krn_type: "ekrn"
-reduce_ratio: 0.4
+reduce_ratio: 0.35
 base_folder: "PolishScores"
 file_format: "jpg"
-tokenization_mode: "ekern"
+tokenization_mode: "bekern"
