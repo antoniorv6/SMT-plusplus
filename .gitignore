@@ -150,4 +150,6 @@ Data/*.tgz
 lightning_logs/
 Generator/paper_textures/
 perico/*
-.idea/*
+predictions_by_SER/
+predictions_polish_by_SER
+

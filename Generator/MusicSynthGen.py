@@ -215,7 +215,7 @@ class VerovioGenerator():
     def generate_score(self, num_sys_gen=1, padding=10, 
                        reduce_ratio=0.5, random_margins=True, check_generated_systems=True, 
                        cut_height=True, add_texture=False, 
-                       include_title=False, include_author=False):
+                       include_title=False, include_author=False, page_size=None):
         
         n_sys_generate = random.randint(1, num_sys_gen)
         if self.fixed_systems:
@@ -266,9 +266,11 @@ class VerovioGenerator():
             
             self.tk.loadData(krnseq)
             
-            if random_margins:
-                self.tk.setOptions({"pageWidth": 2100, "pageMarginLeft":margins[0], "pageMarginRight":margins[1], "pageMarginTop":margins[2], "pageMarginBottom":margins[3], 
-                                "footer": 'none', 'barLineWidth': rfloat(0.3, 0.8), 'beamMaxSlope': rfloat(10,20), 'staffLineWidth': rfloat(0.1, 0.3), 'spacingStaff': rfloat(1, 12)})
+            if page_size != None:
+                self.tk.setOptions({"pageWidth": page_size[1], "pageHeight": page_size[0], "footer": 'none', 'barLineWidth': rfloat(0.3, 0.8), 'beamMaxSlope': rfloat(10,20), 'staffLineWidth': rfloat(0.1, 0.3), 'spacingStaff': rfloat(1, 12)})
+            #if random_margins:
+            #    self.tk.setOptions({"pageWidth": 2100, "pageMarginLeft":margins[0], "pageMarginRight":margins[1], "pageMarginTop":margins[2], "pageMarginBottom":margins[3], 
+            #                    "footer": 'none', 'barLineWidth': rfloat(0.3, 0.8), 'beamMaxSlope': rfloat(10,20), 'staffLineWidth': rfloat(0.1, 0.3), 'spacingStaff': rfloat(1, 12)})
             else:
                 self.tk.setOptions({"pageWidth": 2100, "footer": 'none', 'barLineWidth': rfloat(0.3, 0.8), 'beamMaxSlope': rfloat(10,20), 'staffLineWidth': rfloat(0.1, 0.3), 'spacingStaff': rfloat(1, 12)})
 

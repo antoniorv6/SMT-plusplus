@@ -1,6 +1,7 @@
 import numpy as np
 
 import torch
+import wandb
 import torch.nn as nn
 import lightning.pytorch as L
 
@@ -11,7 +12,7 @@ from config_typings import SMTConfig
 from model.ConvEncoder import Encoder
 from model.ConvNextEncoder import ConvNextEncoder
 from model.Decoder import Decoder
-from model.PositionEncoding import PositionalEncoding2D
+from model.PositionEncoding import PositionalEncoding2D, PositionalEncoding1D
 
 from eval_functions import compute_poliphony_metrics
 
@@ -42,6 +43,8 @@ class SMT(L.LightningModule):
         #self(torch.randn(1,1,config.max_height,config.max_width).to(torch.device("cuda")), torch.randint(0, len(w2i), (1,config.max_len)).to(torch.device("cuda")))
         #import sys
         #sys.exit()
+        self.worst_loss_image = None
+        self.worst_training_loss = -1
         summary(self, input_size=[(1,1,config.max_height,config.max_width), (1,config.max_len)], 
                 dtypes=[torch.float, torch.long])
 
@@ -92,7 +95,17 @@ class SMT(L.LightningModule):
         output, predictions, cache, weights = self.forward(x, di)
         loss = self.loss(predictions, y[:, :-1])
         self.log('loss', loss, on_epoch=True, batch_size=1, prog_bar=True)
+        if loss > self.worst_training_loss:
+            self.worst_loss_image = x
+            self.worst_training_loss = loss
+        
         return loss
+
+    def on_train_epoch_end(self):
+        #plot the worst training loss image in wandb
+        self.logger.experiment.log({"worst_training_loss_image": [wandb.Image(self.worst_loss_image.squeeze(0).cpu().numpy())]})
+        self.worst_training_loss = -1
+        self.worst_loss_image = None
 
     def validation_step(self, val_batch, batch_idx):
         device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')

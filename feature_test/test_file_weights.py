@@ -1,22 +1,24 @@
 import cv2
-import fire
 import torch
 import numpy as np
 from rich import progress
+import hydra
 from SMT import SMT
 from visualizer.WeightsVisualizer import SMTWeightsVisualizer
 from data_augmentation.data_augmentation import convert_img_to_tensor
+from config_typings import Config
 
-def main():
+@hydra.main(version_base=None, config_path="config")
+def main(config:Config):
 
-    img_path = "#2.jpg"
-    model_weights = "weights/fp_polish_simple/SMT_NexT_fold_0.ckpt"
+    img_path = "sonata24-1.p_004.png"
+    model_weights = "weights/fp_grandstaff/SMT_NexT_bekern_fold_0.ckpt"
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     visualizer_module = SMTWeightsVisualizer(frames_path="frames/", animation_path="animation/")
     
     img = cv2.imread(img_path)
-    img = cv2.resize(img, (int(img.shape[1] * 0.3), int(img.shape[1] * 0.3)))
+    img = cv2.resize(img, (int(img.shape[1] * 0.5), int(img.shape[1] * 0.5)))
     img_tensor = convert_img_to_tensor(img)
     
     model = SMT.load_from_checkpoint(model_weights)
@@ -37,17 +39,19 @@ def main():
             predicted_char = i2w[predicted_token]
             if predicted_char == '<eos>':
                 break
-            weights["self"] = [torch.reshape(w.unsqueeze(1).cpu(), (-1, 1, encoder_output.shape[2], encoder_output.shape[3])) for w in weights["self"]]
-            weights_append = weights["self"][-1]
-            self_weights.append(weights["mix"][-1])
-            global_weights.append(weights_append[i])
+            #weights["self"] = [torch.reshape(w.unsqueeze(1).cpu(), (-1, 1, encoder_output.shape[2], encoder_output.shape[3])) for w in weights["self"]]
+            #weights_append = weights["self"][-1]
+            #self_weights.append(weights["mix"][-1])
+            #global_weights.append(weights_append[i])
             text_sequence.append(predicted_char)
     
-    attention_weights = global_weights
-    attention_weights = np.stack(attention_weights, axis=0)
-    attention_weights = torch.tensor(attention_weights).squeeze(1).detach().numpy()
-    zero_weights = np.zeros((1, attention_weights.shape[1], attention_weights.shape[2]))
-    attention_weights = np.concatenate([zero_weights, attention_weights, zero_weights], axis=0)
+    pred_sequence = text_sequence.copy()
+    
+    #attention_weights = global_weights
+    #attention_weights = np.stack(attention_weights, axis=0)
+    #attention_weights = torch.tensor(attention_weights).squeeze(1).detach().numpy()
+    #zero_weights = np.zeros((1, attention_weights.shape[1], attention_weights.shape[2]))
+    #attention_weights = np.concatenate([zero_weights, attention_weights, zero_weights], axis=0)
     
     with open("prediction.krn", "w") as predfile:
         text_sequence = "**kern \t **kern \n" + "".join(text_sequence).replace("<t>", "\t")
@@ -55,7 +59,7 @@ def main():
         text_sequence = text_sequence.replace("<s>", " ").replace('**ekern_1.0', '**kern')
         predfile.write(text_sequence)
     
-    visualizer_module.render(x=img, y="", predicted_seq=text_sequence, self_weights=self_weights, attn_weights=attention_weights, animation_name=str(0))
+    #visualizer_module.render(x=img, y="", predicted_seq=pred_sequence, self_weights=self_weights, attn_weights=attention_weights, animation_name=str(0))
     
     import sys
     sys.exit()

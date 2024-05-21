@@ -152,7 +152,7 @@ class GrandStaffSingleSystem(OMRIMG2SEQDataset):
     def __getitem__(self, index):
         x = self.x[index]
         y = self.y[index]
-
+        
         if self.augment:
             x = augment(x)
         else:
@@ -237,8 +237,12 @@ class CLOMRDataset(OMRIMG2SEQDataset):
         self.max_cl_steps = self.increase_steps * self.num_cl_steps
         self.curriculum_stage_beginning = cl_config.curriculum_stage_beginning
         self.tokenization_mode = data_config.tokenization_mode
-
-        #self.binarize = data_config.binarize
+        
+        self.skip_progressive = cl_config.skip_progressive
+        self.offset = 0
+        if self.skip_progressive:
+            self.offset = (self.num_cl_steps + self.curriculum_stage_beginning) * self.increase_steps 
+        self.skip_cl = cl_config.skip_cl
     
     def set_logger(self, logger):
         self.logger = logger
@@ -247,26 +251,29 @@ class CLOMRDataset(OMRIMG2SEQDataset):
        return [re.sub(r'(?<=\=)\d+', '', token) for token in tokens]
 
     def linear_scheduler_synthetic(self):
-        return self.max_synth_prob + round((self.trainer.global_step - self.max_cl_steps) * (self.min_synth_prob - self.max_synth_prob) / self.num_steps_decrease, 4)
+        return self.max_synth_prob + round(((self.trainer.global_step + self.offset) - self.max_cl_steps) * (self.min_synth_prob - self.max_synth_prob) / self.num_steps_decrease, 4)
 
     def set_trainer_data(self, trainer):
         self.trainer = trainer
     
     def __getitem__(self, index):
         stage = (self.trainer.global_step // self.increase_steps) + self.curriculum_stage_beginning
-
-        if stage < self.num_cl_steps + self.curriculum_stage_beginning:
+        
+        if (stage < self.num_cl_steps + self.curriculum_stage_beginning) and not self.skip_progressive:
             probability = 1
             num_sys_to_gen = np.random.randint(1, stage)
             #Set the variable gen_author_title to True if a random number if above 0.5
-            add_texture = np.random.rand() > 0.3
+            #add_texture = np.random.rand() > 0.3
             gen_author_title = np.random.rand() > 0.5
             cut_height = np.random.rand() > 0.7
             x, y = self.generator.generate_score(num_sys_gen=num_sys_to_gen,
-                                                 check_generated_systems=True, cut_height=cut_height, add_texture=add_texture, 
+                                                 check_generated_systems=True, cut_height=cut_height, add_texture=True, 
                                                  include_author=gen_author_title, include_title=gen_author_title)
         else:
-            probability = max(self.min_synth_prob, self.linear_scheduler_synthetic())
+            if self.skip_cl:
+                probability = 0
+            else:
+                probability = max(self.min_synth_prob, self.linear_scheduler_synthetic())
             if np.random.random() > probability:
                 x = self.x[index]
                 y = erase_whitespace_elements(self.y[index])
@@ -276,7 +283,8 @@ class CLOMRDataset(OMRIMG2SEQDataset):
                 cut_height = np.random.rand() > 0.7
                 x, y = self.generator.generate_score(num_sys_gen=num_sys_to_gen,
                                                      check_generated_systems=False, cut_height=cut_height, add_texture=True, 
-                                                     include_author=gen_author_title, include_title=gen_author_title)
+                                                     include_author=gen_author_title, include_title=gen_author_title, 
+                                                     reduce_ratio=1, page_size=self.x[index].shape[:-1])
 
         if self.augment:
             x = augment(x)

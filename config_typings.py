@@ -31,6 +31,8 @@ class CLConfig:
     finetune_steps: int
     teacher_forcing_perc: float
     curriculum_stage_beginning: int
+    skip_progressive: bool = False
+    skip_cl: bool = False
 
 @dataclass
 class SMTConfig:

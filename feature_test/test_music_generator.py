@@ -6,7 +6,7 @@ generator = VerovioGenerator("Data/GrandStaff/partitions_grandstaff/types/train.
 
 image, ground_truth = generator.generate_score(num_sys_gen=7, cut_height=False, random_margins=False, 
                                                add_texture=True, include_title=False, include_author=False,
-                                               check_generated_systems=True)
+                                               check_generated_systems=True, page_size=[2980, 3728], reduce_ratio=0.35)
 
 print(ground_truth)
 #image_tensor = augment(image)
