@@ -279,12 +279,12 @@ class CLOMRDataset(OMRIMG2SEQDataset):
                 y = erase_whitespace_elements(self.y[index])
             else:
                 num_sys_to_gen = np.random.randint(1, 4)
+                gen_texture = np.random.rand() > 0.3
                 gen_author_title = np.random.rand() > 0.5
                 cut_height = np.random.rand() > 0.7
                 x, y = self.generator.generate_score(num_sys_gen=num_sys_to_gen,
-                                                     check_generated_systems=False, cut_height=cut_height, add_texture=True, 
-                                                     include_author=gen_author_title, include_title=gen_author_title, 
-                                                     reduce_ratio=1, page_size=self.x[index].shape[:-1])
+                                                     check_generated_systems=False, cut_height=cut_height, add_texture=gen_texture, 
+                                                     include_author=gen_author_title, include_title=gen_author_title)
 
         if self.augment:
             x = augment(x)
