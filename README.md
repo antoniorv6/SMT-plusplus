@@ -21,7 +21,6 @@
   <a href='#license'>License</a>
 </p>
 
-
 ## About
 
 This GitHub repository contains the implementation of the Sheet Music Transformer ++ (SMT), the upgraded version of the Sheet Music Transformer model for full-page pianoform music sheet transcription. Unlike traditional approaches that primarily resort this challenge by implementing layout analysis techniques with end-to-end transcription, the SMT ++ model offers a image-to-sequence solution for transcribing these scores directly from images. To do so, this model is trained through a progressive curriculum learning strategy with synthetic generation.
@@ -33,6 +32,7 @@ This GitHub repository contains the implementation of the Sheet Music Transforme
 :warning: **Please bear in mind that, although some results have been published, this is still an work-in-progress project, bugs may be found**
 
 ## How to use
+
 Usage instructions and data publication coming (hopefully) soon!
 
 ## Citations
