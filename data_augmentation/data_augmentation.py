@@ -14,7 +14,7 @@ def augment(image):
     kernel_w = np.random.randint(1, 3 + 1)
 
     br_factor = np.random.uniform(0.01, 1)
-    ctr_factor = np.random.uniform(0.01, 1)
+    ctr_factor = np.random.uniform(0.7, 2)
 
     dilation_erosion = None
     if np.random.randint(2) == 0:
@@ -25,11 +25,12 @@ def augment(image):
     transform = transforms.Compose(
         [   
             transforms.ToPILImage(),
-            DPIAdjusting(np.random.uniform(0.75, 1)),
-            transforms.RandomPerspective(distortion_scale=distortion_perspective, p=1, interpolation=Image.BILINEAR, fill=255),
-            transforms.RandomApply([ElasticDistortion(grid=(elastic_dist_kernel, elastic_dist_kernel), magnitude=(magnitude_w, magnitude_h), min_sep=(1,1))], p=0.2),
-            transforms.RandomApply([RandomTransform(16)], p=0.2),
-            transforms.RandomApply([dilation_erosion], p=0.2),
+            transforms.RandomApply([DPIAdjusting(np.random.uniform(0.75, 1))], p=0.1),
+            transforms.RandomPerspective(distortion_scale=distortion_perspective, p=0.1, interpolation=Image.BILINEAR, fill=255),
+            transforms.RandomApply([ElasticDistortion(grid=(elastic_dist_kernel, elastic_dist_kernel), magnitude=(magnitude_w, magnitude_h), min_sep=(1,1))], p=0.1),
+            transforms.RandomApply([RandomTransform(16)], p=0.1),
+            transforms.RandomApply([transforms.GaussianBlur(kernel_size=(3, 3), sigma=(3, 5))], p=0.1),
+            transforms.RandomApply([ContrastAdjust(factor=ctr_factor)], p=0.1),
             transforms.Grayscale(),
             transforms.ToTensor()
         ]

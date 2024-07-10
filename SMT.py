@@ -44,7 +44,9 @@ class SMT(L.LightningModule):
         #import sys
         #sys.exit()
         self.worst_loss_image = None
+        self.best_loss_image = None
         self.worst_training_loss = -1
+        self.best_training_loss = 1e10
         summary(self, input_size=[(1,1,config.max_height,config.max_width), (1,config.max_len)], 
                 dtypes=[torch.float, torch.long])
 
@@ -99,12 +101,20 @@ class SMT(L.LightningModule):
             self.worst_loss_image = x
             self.worst_training_loss = loss
         
+        if loss < self.best_training_loss:
+            self.best_loss_image = x
+            self.best_training_loss = loss
+        
         return loss
 
     def on_train_epoch_end(self):
         #plot the worst training loss image in wandb
         self.logger.experiment.log({"worst_training_loss_image": [wandb.Image(self.worst_loss_image.squeeze(0).cpu().numpy())]})
+        self.logger.experiment.log({"best_training_loss_image": [wandb.Image(self.best_loss_image.squeeze(0).cpu().numpy())]})
+        
         self.worst_training_loss = -1
+        self.best_training_loss = 1e10
+        self.best_loss_image = None
         self.worst_loss_image = None
 
     def validation_step(self, val_batch, batch_idx):

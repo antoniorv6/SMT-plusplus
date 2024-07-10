@@ -14,6 +14,18 @@ from Generator.MusicSynthGen import VerovioGenerator
 def erase_whitespace_elements(tokens):
     return [token for token in tokens if token != ""]
 
+def clean_kern(krn, avoid_tokens=['*Xped', '*ped', '*Xtuplet', '*tuplet', "*Xtremolo", '*cue', '*Xcue', '*rscale:1/2', '*rscale:1', '*kcancel', '*below']):
+    krn = krn.split('\n')
+    newkrn = []
+    # Remove the lines that contain the avoid tokens
+    for idx, line in enumerate(krn):
+        if not any([token in line.split('\t') for token in avoid_tokens]):
+            #If all the tokens of the line are not '*'
+            if not all([token == '*' for token in line.split('\t')]):
+                newkrn.append(line.replace("\n", ""))
+                
+    return "\n".join(newkrn)
+
 def load_set(path, base_folder="GrandStaff", fileformat="jpg", krn_type="bekrn", reduce_ratio=0.5):
     x = []
     y = []
@@ -111,8 +123,12 @@ class OMRIMG2SEQDataset(Dataset):
     
     def preprocess_gt(self, Y, tokenization_method="standard"):
         for idx, krn in enumerate(Y):
-            krnlines = []
+            
             krn = "".join(krn)
+            krn = krn.replace("*tremolo", "*")
+            krn = clean_kern(krn)
+            
+            
             krn = krn.replace(" ", " <s> ")
             
             if tokenization_method == "bekern":
@@ -125,13 +141,16 @@ class OMRIMG2SEQDataset(Dataset):
                 krn = krn.replace("·", "")
                 krn = krn.replace("@", "")
                 
-            krn = krn.replace("/", "")
-            krn = krn.replace("\\", "")
+            krn = krn.replace(" /", "")
+            krn = krn.replace(" \\", "")
+            krn = krn.replace("·/", "")
+            krn = krn.replace("·\\", "")
             krn = krn.replace("\t", " <t> ")
             krn = krn.replace("\n", " <b> ")
             krn = krn.split(" ")
                     
             Y[idx] = self.erase_numbers_in_tokens_with_equal(['<bos>'] + krn[4:-1] + ['<eos>'])
+            
         return Y
 
 class GrandStaffSingleSystem(OMRIMG2SEQDataset):
@@ -178,7 +197,7 @@ class SyntheticOMRDataset(OMRIMG2SEQDataset):
     
     def __getitem__(self, index):
         
-        x, y = self.generator.generate_system()
+        x, y = self.generator.generate_music_system_image()
 
         if self.augment:
             x = augment(x)
@@ -193,7 +212,7 @@ class SyntheticOMRDataset(OMRIMG2SEQDataset):
         return self.dataset_len
 
 class PretrainingLinesDataset(LightningDataModule):
-    def __init__(self, config:DataConfig, batch_size=1, num_workers=24) -> None:
+    def __init__(self, config:DataConfig, batch_size=1, num_workers=15) -> None:
         super().__init__()
         self.data_path = config.data_path
         self.vocab_name = config.vocab_name
@@ -223,6 +242,7 @@ class CLOMRDataset(OMRIMG2SEQDataset):
         super().__init__(teacher_forcing_perc, augment)
         self.x, self.y = load_set(f"{data_config.data_path}{data_config.fold}/train.txt", base_folder=data_config.base_folder, fileformat=data_config.file_format, 
                                   krn_type=data_config.krn_type, reduce_ratio=data_config.reduce_ratio)
+        self.reduce_ratio = data_config.reduce_ratio
         self.generator = VerovioGenerator(gt_samples_path=f"{data_config.synth_path}/train.txt", fixed_number_systems=False, tokenization_method=data_config.tokenization_mode)
         self.y = self.preprocess_gt(self.y, tokenization_method=data_config.tokenization_mode)
         self.num_sys_gen = 1
@@ -278,13 +298,15 @@ class CLOMRDataset(OMRIMG2SEQDataset):
                 x = self.x[index]
                 y = erase_whitespace_elements(self.y[index])
             else:
-                num_sys_to_gen = np.random.randint(1, 4)
-                gen_texture = np.random.rand() > 0.3
+                num_sys_to_gen = np.random.randint(3, 4)
                 gen_author_title = np.random.rand() > 0.5
                 cut_height = np.random.rand() > 0.7
                 x, y = self.generator.generate_score(num_sys_gen=num_sys_to_gen,
-                                                     check_generated_systems=False, cut_height=cut_height, add_texture=gen_texture, 
-                                                     include_author=gen_author_title, include_title=gen_author_title)
+                                                     check_generated_systems=False, cut_height=cut_height, add_texture=True, 
+                                                     include_author=gen_author_title, include_title=gen_author_title, 
+                                                     reduce_ratio=self.reduce_ratio, 
+                                                     page_size=[self.x[index].shape[0]/self.reduce_ratio, 
+                                                                self.x[index].shape[1]/self.reduce_ratio])
 
         if self.augment:
             x = augment(x)
