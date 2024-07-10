@@ -131,6 +131,8 @@ dmypy.json
 *.tgz
 
 outputs/
+Data/Mozarteum_v2/*
+Data/Mozarteum/mozarteum_dataset
 Data/GrandStaff/grandstaff_dataset
 Data/GrandStaff/grandstaff_dataset_old
 Data/FPGrandStaff/fp_grandstaff_dataset
@@ -138,8 +140,11 @@ Data/StringQuartets/quartets_dataset
 Data/PolishScores/polish_corpus_v0_dataset
 Data/PolishScores/polish_corpus_v1_dataset
 Data/PolishScores/polish_corpus_v2_dataset
+Data/MSCorePianoSynth/excerpts
 Data/PolishScores/polish_by_period
 Data/PseudoSynthGen/
+Data/failed_conversions/
+
 wandb/
 weights/
 out/
@@ -149,8 +154,10 @@ weights_old/*
 Data/*.tgz
 lightning_logs/
 Generator/paper_textures/
+Generator/paper_textures_old/
 perico/*
 predictions_by_SER/
 predictions_polish_by_SER
 old.py
+joblib_cache/
 
