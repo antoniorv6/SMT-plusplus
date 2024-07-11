@@ -60,3 +60,4 @@ fpw2i_and_gw2i = set(fpw2i.keys()) & set(gw2i.keys())
 print(f"Number of tokens in PolishScores that are in GrandStaff: {len(fpw2i_and_gw2i)}")
 
 #print(fpw2i_not_gw2i)
+print(fpw2i)

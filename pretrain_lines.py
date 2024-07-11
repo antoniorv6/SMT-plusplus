@@ -22,7 +22,7 @@ def main(config:Config):
 
     model = SMT(config=config.model_setup, w2i=w2i, i2w=i2w)
 
-    wandb_logger = WandbLogger(project='FP_SMT', group=f"PolishScores", name=f"{config.metadata.model_name}", log_model=False)
+    wandb_logger = WandbLogger(project='FP_SMT', group=f"Mozarteum", name=f"{config.metadata.model_name}", log_model=False)
 
     early_stopping = EarlyStopping(monitor=config.experiment.metric_to_watch, min_delta=0.01, patience=5, mode="min", verbose=True)
     

@@ -197,7 +197,7 @@ class SyntheticOMRDataset(OMRIMG2SEQDataset):
     
     def __getitem__(self, index):
         
-        x, y = self.generator.generate_music_system_image()
+        x, y = self.generator.generate_system()
 
         if self.augment:
             x = augment(x)
@@ -271,15 +271,14 @@ class CLOMRDataset(OMRIMG2SEQDataset):
        return [re.sub(r'(?<=\=)\d+', '', token) for token in tokens]
 
     def linear_scheduler_synthetic(self):
-        return self.max_synth_prob + round(((self.trainer.global_step + self.offset) - self.max_cl_steps) * (self.min_synth_prob - self.max_synth_prob) / self.num_steps_decrease, 4)
+        return self.max_synth_prob + round(((self.trainer.global_step - self.max_cl_steps) - self.max_cl_steps) * (self.min_synth_prob - self.max_synth_prob) / self.num_steps_decrease, 4)
 
     def set_trainer_data(self, trainer):
         self.trainer = trainer
     
     def __getitem__(self, index):
         stage = (self.trainer.global_step // self.increase_steps) + self.curriculum_stage_beginning
-        
-        if (stage < self.num_cl_steps + self.curriculum_stage_beginning) and not self.skip_progressive:
+        if (stage < self.num_cl_steps + self.curriculum_stage_beginning):
             probability = 1
             num_sys_to_gen = np.random.randint(1, stage)
             #Set the variable gen_author_title to True if a random number if above 0.5
@@ -304,7 +303,6 @@ class CLOMRDataset(OMRIMG2SEQDataset):
                 x, y = self.generator.generate_score(num_sys_gen=num_sys_to_gen,
                                                      check_generated_systems=False, cut_height=cut_height, add_texture=True, 
                                                      include_author=gen_author_title, include_title=gen_author_title, 
-                                                     reduce_ratio=self.reduce_ratio, 
                                                      page_size=[self.x[index].shape[0]/self.reduce_ratio, 
                                                                 self.x[index].shape[1]/self.reduce_ratio])
 
@@ -313,7 +311,7 @@ class CLOMRDataset(OMRIMG2SEQDataset):
         else:
             x = convert_img_to_tensor(x)
         
-        y = torch.from_numpy(np.asarray([self.w2i[token] for token in y]))
+        y = torch.from_numpy(np.asarray([self.w2i[token] for token in erase_whitespace_elements(y)]))
         decoder_input = self.apply_teacher_forcing(y)
 
         if self.logger != None:
@@ -323,7 +321,7 @@ class CLOMRDataset(OMRIMG2SEQDataset):
 
 
 class GraphicCLDataModule(LightningDataModule):
-    def __init__(self, data_config:DataConfig, cl_config:CLConfig, fold=0, batch_size=1, num_workers=24) -> None:
+    def __init__(self, data_config:DataConfig, cl_config:CLConfig, fold=0, batch_size=1, num_workers=15) -> None:
         super().__init__()
         self.data_path = f"{data_config.data_path}_{fold}"
         self.synth_data_path = data_config.synth_path

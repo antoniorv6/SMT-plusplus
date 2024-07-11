@@ -29,7 +29,6 @@ def main(config:Config):
     except omegaconf.errors.ConfigAttributeError:
         logger.warning("No pretrain weights provided, training from scratch")
         model = SMT(config=config.model_setup, w2i=train_dataset.w2i, i2w=train_dataset.i2w)
-        
     
     wandb_logger = WandbLogger(project='FP_SMT', group=f"{config.metadata.corpus_name}", name=f"{config.metadata.model_name}", log_model=False)
 

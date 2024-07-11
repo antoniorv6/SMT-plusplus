@@ -338,13 +338,7 @@ class VerovioGenerator():
             if detect_spine_errors(krnseq):
                 self.tk.loadData(krnseq)
 
-                if page_size != None:
-                    self.tk.setOptions({"pageWidth": page_size[1], "pageHeight": page_size[0], "footer": 'none', 'barLineWidth': rfloat(0.3, 0.8), 'beamMaxSlope': rfloat(10,20), 'staffLineWidth': rfloat(0.1, 0.3), 'spacingStaff': rfloat(1, 12)})
-                #if random_margins:
-                #    self.tk.setOptions({"pageWidth": 2100, "pageMarginLeft":margins[0], "pageMarginRight":margins[1], "pageMarginTop":margins[2], "pageMarginBottom":margins[3], 
-                #                    "footer": 'none', 'barLineWidth': rfloat(0.3, 0.8), 'beamMaxSlope': rfloat(10,20), 'staffLineWidth': rfloat(0.1, 0.3), 'spacingStaff': rfloat(1, 12)})
-                else:
-                    self.tk.setOptions({"pageWidth": 2100, "footer": 'none', 'barLineWidth': rfloat(0.3, 0.8), 'beamMaxSlope': rfloat(10,20), 'staffLineWidth': rfloat(0.1, 0.3), 'spacingStaff': rfloat(1, 12)})
+                self.tk.setOptions({"pageWidth": 2100, "footer": 'none', 'barLineWidth': rfloat(0.3, 0.8), 'beamMaxSlope': rfloat(10,20), 'staffLineWidth': rfloat(0.1, 0.3), 'spacingStaff': rfloat(1, 12)})
 
                 self.tk.getPageCount()
                 svg = self.tk.renderToSVG()
