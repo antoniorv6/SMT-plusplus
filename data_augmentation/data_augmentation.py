@@ -10,17 +10,8 @@ def augment(image):
     elastic_dist_magnitude = np.random.randint(1, 20 + 1)
     elastic_dist_kernel = np.random.randint(1, 3 + 1)
     magnitude_w, magnitude_h = (elastic_dist_magnitude, 1) if np.random.randint(2) == 0 else (1, elastic_dist_magnitude)
-    kernel_h = np.random.randint(1, 3 + 1)
-    kernel_w = np.random.randint(1, 3 + 1)
 
-    br_factor = np.random.uniform(0.01, 1)
     ctr_factor = np.random.uniform(0.7, 2)
-
-    dilation_erosion = None
-    if np.random.randint(2) == 0:
-        dilation_erosion = Erosion((kernel_w, kernel_h), 1)
-    else:
-        dilation_erosion = Dilation((kernel_w, kernel_h),1)
 
     transform = transforms.Compose(
         [   
@@ -31,6 +22,7 @@ def augment(image):
             transforms.RandomApply([RandomTransform(16)], p=0.1),
             transforms.RandomApply([transforms.GaussianBlur(kernel_size=(3, 3), sigma=(3, 5))], p=0.1),
             transforms.RandomApply([ContrastAdjust(factor=ctr_factor)], p=0.1),
+            transforms.RandomInvert(p=1.0),
             transforms.Grayscale(),
             transforms.ToTensor()
         ]
@@ -40,9 +32,10 @@ def augment(image):
 
     return image
 
-def convert_img_to_tensor(image, force_one_channel=False):
+def convert_img_to_tensor(image):
     transform = transforms.Compose(
         [transforms.ToPILImage(),
+        transforms.RandomInvert(p=1.0),
         transforms.Grayscale(),
         transforms.ToTensor()]
     )

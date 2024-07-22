@@ -1,20 +1,18 @@
 import re
 import cv2
+import wandb
 import torch
+import random
 import numpy as np
-
-from config_typings import DataConfig, CLConfig
 from rich import progress
-from utils import check_and_retrieveVocabulary
-from lightning.pytorch import LightningDataModule
+from Generator.SynthGenerator import VerovioGenerator
 from data_augmentation.data_augmentation import augment, convert_img_to_tensor
+from utils.vocab_utils import check_and_retrieveVocabulary
+
 from torch.utils.data import Dataset
-from Generator.MusicSynthGen import VerovioGenerator
+from lightning.pytorch import LightningDataModule
 
-def erase_whitespace_elements(tokens):
-    return [token for token in tokens if token != ""]
-
-def clean_kern(krn, avoid_tokens=['*Xped', '*ped', '*Xtuplet', '*tuplet', "*Xtremolo", '*cue', '*Xcue', '*rscale:1/2', '*rscale:1', '*kcancel', '*below']):
+def clean_kern(krn, avoid_tokens=['*tremolo','*staff2', '*staff1','*Xped', '*tremolo', '*ped', '*Xtuplet', '*tuplet', "*Xtremolo", '*cue', '*Xcue', '*rscale:1/2', '*rscale:1', '*kcancel', '*below']):
     krn = krn.split('\n')
     newkrn = []
     # Remove the lines that contain the avoid tokens
@@ -26,26 +24,45 @@ def clean_kern(krn, avoid_tokens=['*Xped', '*ped', '*Xtuplet', '*tuplet', "*Xtre
                 
     return "\n".join(newkrn)
 
-def load_set(path, base_folder="GrandStaff", fileformat="jpg", krn_type="bekrn", reduce_ratio=0.5):
+def load_kern_file(path: str, tokenization_mode='bekern') -> str:
+    with open(path, 'r') as file:
+        krn = file.read()
+        krn = clean_kern(krn)
+        krn = krn.replace(" ", " <s> ")
+        krn = krn.replace("\t", " <t> ")
+        krn = krn.replace("\n", " <b> ")
+        krn = krn.replace(" /", "")
+        krn = krn.replace(" \\", "")
+        krn = krn.replace("·/", "")
+        krn = krn.replace("·\\", "")
+
+        if tokenization_mode == "kern":
+            krn = krn.replace("·", "").replace('@', '')
+        
+        if tokenization_mode == "ekern":
+            krn = krn.replace("·", " ").replace('@', '')
+        
+        if tokenization_mode == "bekern":
+            krn = krn.replace("·", " ").replace("@", " ")
+            
+        krn = krn.split(" ")[4:-1]
+        krn = [re.sub(r'(?<=\=)\d+', '', token) for token in krn]
+        
+        return krn
+
+def load_from_files_list(file_ref: list, base_folder:str, tokenization_mode='bekern', reduce_ratio=0.5) -> list:
+    files = []
     x = []
     y = []
-    with open(path) as datafile:
-        lines = datafile.readlines()
-        for line in progress.track(lines):
-            excerpt = line.replace("\n", "")
-            #try:
-            with open(f"Data/{base_folder}/{'.'.join(excerpt.split('.')[:-1])}.{krn_type}") as krnfile:
-                krn_content = krnfile.read()
-                fname = ".".join(excerpt.split('.')[:-1])
-                img = cv2.imread(f"Data/{base_folder}/{fname}.{fileformat}")
-                width = int(np.ceil(img.shape[1] * reduce_ratio))
-                height = int(np.ceil(img.shape[0] * reduce_ratio))
-                img = cv2.resize(img, (width, height))
-                y.append([content + '\n' for content in krn_content.strip().split("\n")])
-                x.append(img)
-            #except Exception e:
-            #    print(f'Error reading Data/GrandStaff/{excerpt}')
-
+    with open(file_ref, 'r') as file:
+        files = [line for line in file.read().split('\n') if line != ""]
+        for file in progress.track(files):
+           y.append(['<bos>'] + load_kern_file((base_folder + file), tokenization_mode=tokenization_mode) + ['<eos>'])
+           img = cv2.imread(base_folder + file.replace('.ekern', '.jpg'))
+           width = int(np.ceil(img.shape[1] * reduce_ratio))
+           height = int(np.ceil(img.shape[0] * reduce_ratio))
+           img = cv2.resize(img, (width, height))
+           x.append(img)
     return x, y
 
 def batch_preparation_img2seq(data):
@@ -120,87 +137,22 @@ class OMRIMG2SEQDataset(Dataset):
     
     def get_i2w(self):
         return self.i2w
-    
-    def preprocess_gt(self, Y, tokenization_method="standard"):
-        for idx, krn in enumerate(Y):
-            
-            krn = "".join(krn)
-            krn = krn.replace("*tremolo", "*")
-            krn = clean_kern(krn)
-            
-            
-            krn = krn.replace(" ", " <s> ")
-            
-            if tokenization_method == "bekern":
-                krn = krn.replace("·", " ")
-                krn = krn.replace("@", " ")
-            if tokenization_method == "ekern":
-                krn = krn.replace("·", " ")
-                krn = krn.replace("@", "")
-            if tokenization_method == "standard":
-                krn = krn.replace("·", "")
-                krn = krn.replace("@", "")
-                
-            krn = krn.replace(" /", "")
-            krn = krn.replace(" \\", "")
-            krn = krn.replace("·/", "")
-            krn = krn.replace("·\\", "")
-            krn = krn.replace("\t", " <t> ")
-            krn = krn.replace("\n", " <b> ")
-            krn = krn.split(" ")
-                    
-            Y[idx] = self.erase_numbers_in_tokens_with_equal(['<bos>'] + krn[4:-1] + ['<eos>'])
-            print(Y[idx])
-            import sys
-            sys.exit()
-            
-        return Y
-
-class GrandStaffSingleSystem(OMRIMG2SEQDataset):
-    def __init__(self, data_path, config: DataConfig, augment=False) -> None:
-        super().__init__(augment)
-        self.augment = augment
-        self.teacher_forcing_error_rate = 0.2
-        self.x, self.y = load_set(data_path, base_folder=config.base_folder, 
-                                  fileformat=config.file_format, krn_type=config.krn_type, reduce_ratio=config.reduce_ratio)
-        self.y = self.preprocess_gt(self.y, tokenization_method=config.tokenization_mode)
-        self.num_sys_gen = 1
-        self.fixed_systems_num = False
-
-    @staticmethod
-    def erase_numbers_in_tokens_with_equal(tokens):
-        return [re.sub(r'(?<=\=)\d+', '', token) for token in tokens]
-
-    def __getitem__(self, index):
-        x = self.x[index]
-        y = self.y[index]
-        
-        if self.augment:
-            x = augment(x)
-        else:
-            x = convert_img_to_tensor(x)
-        
-        y = torch.from_numpy(np.asarray([self.w2i[token] for token in erase_whitespace_elements(y)]))
-        decoder_input = self.apply_teacher_forcing(y)
-        return x, decoder_input, y
-    
-    def __len__(self):
-        return len(self.x)
 
 class SyntheticOMRDataset(OMRIMG2SEQDataset):
-    def __init__(self, data_path, number_of_systems=1, teacher_forcing_perc=0.2, reduce_ratio=0.5, 
-                 dataset_length=40000, include_texture=False, augment=False, fixed_systems=False, tokenization_mode="standard") -> None:
+    def __init__(self, data_path, base_folder, number_of_systems=1, teacher_forcing_perc=0.2, reduce_ratio=0.5, 
+                 dataset_length=40000, augment=False, tokenization_mode="standard") -> None:
         super().__init__(teacher_forcing_perc, augment)
-        self.generator = VerovioGenerator(gt_samples_path=data_path, fixed_number_systems=fixed_systems, tokenization_method=tokenization_mode)
+        self.generator = VerovioGenerator(sources=[data_path], base_folder=base_folder,
+                                          tokenization_mode=tokenization_mode)
+        
         self.num_sys_gen = number_of_systems
         self.dataset_len = dataset_length
         self.reduce_ratio = reduce_ratio
-        self.include_texture = include_texture
         self.tokenization_mode = tokenization_mode
     
     def __getitem__(self, index):
         
-        x, y = self.generator.generate_system()
+        x, y = self.generator.generate_music_system_image()
 
         if self.augment:
             x = augment(x)
@@ -214,16 +166,109 @@ class SyntheticOMRDataset(OMRIMG2SEQDataset):
     def __len__(self):
         return self.dataset_len
 
-class PretrainingLinesDataset(LightningDataModule):
-    def __init__(self, config:DataConfig, batch_size=1, num_workers=15) -> None:
+class RealDataset(OMRIMG2SEQDataset):
+    def __init__(self, data_path, base_folder, teacher_forcing_perc=0.2, reduce_ratio=1.0, 
+                augment=False, tokenization_mode="standard") -> None:
+       super().__init__(teacher_forcing_perc, augment)
+       self.reduce_ratio = reduce_ratio
+       self.tokenization_mode = tokenization_mode
+       self.x, self.y = load_from_files_list(data_path, base_folder, tokenization_mode, reduce_ratio=reduce_ratio)
+       
+    def __getitem__(self, index):
+       
+       x = self.x[index]
+       y = self.y[index]
+
+       if self.augment:
+           x = augment(x)
+       else:
+           x = convert_img_to_tensor(x)
+
+       y = torch.from_numpy(np.asarray([self.w2i[token] for token in y if token != '']))
+       decoder_input = self.apply_teacher_forcing(y)
+       return x, decoder_input, y
+
+    def __len__(self):
+       return len(self.x)
+
+class CurriculumTrainingDataset(OMRIMG2SEQDataset):
+    def __init__(self, data_path, base_folder, teacher_forcing_perc=0.2, reduce_ratio=1.0, 
+                augment=False, tokenization_mode="standard") -> None:
+       super().__init__(teacher_forcing_perc, augment)
+       self.reduce_ratio = reduce_ratio
+       self.tokenization_mode = tokenization_mode
+       self.x, self.y = load_from_files_list(data_path, base_folder, tokenization_mode, reduce_ratio=reduce_ratio)
+       self.generator = VerovioGenerator(sources=["Data/GrandStaff/partitions_grandstaff/types/train.txt"], 
+                                         base_folder="Data/GrandStaff/",
+                                         tokenization_mode=tokenization_mode)
+       
+       self.max_synth_prob = 0.9
+       self.min_synth_prob = 0.2
+       self.finetune_steps = 200000
+       self.increase_steps = 40000
+       self.num_cl_steps = 3
+       self.max_cl_steps = self.increase_steps * self.num_cl_steps
+       self.curriculum_stage_beginning = 2
+    
+    def set_trainer_data(self, trainer):
+        self.trainer = trainer
+    
+    def linear_scheduler_synthetic(self, step):
+        return self.max_synth_prob + round((step - self.max_cl_steps) * (self.min_synth_prob - self.max_synth_prob) / self.finetune_steps, 4)
+
+    def __getitem__(self, index):
+        step = self.trainer.global_step
+        stage = (self.trainer.global_step // self.increase_steps) + self.curriculum_stage_beginning
+        gen_author_title = np.random.rand() > 0.5
+        wandb.log({'Stage': stage})
+        if stage < (self.num_cl_steps + self.curriculum_stage_beginning):
+           num_sys_to_gen = random.randint(1, stage)
+           x, y = self.generator.generate_full_page_score(
+               max_systems = num_sys_to_gen,
+               strict_systems=True,
+               strict_height=(random.random() < 0.3),
+               include_author=gen_author_title,
+               include_title=gen_author_title,
+               reduce_ratio=0.5)
+        else:
+            probability = max(self.linear_scheduler_synthetic(step), self.min_synth_prob)
+            wandb.log({'Synthetic Probability': probability})
+            if random.random() > probability:
+                x = self.x[index]
+                y = self.y[index]
+            else:
+                x, y = self.generator.generate_full_page_score(
+                    max_systems = random.randint(3, 4),
+                    strict_systems=False,
+                    strict_height=(random.random() < 0.3),
+                    include_author=gen_author_title,
+                    include_title=gen_author_title,
+                    reduce_ratio=0.5)
+
+        if self.augment:
+           x = augment(x)
+        else:
+           x = convert_img_to_tensor(x)
+
+        y = torch.from_numpy(np.asarray([self.w2i[token] for token in y if token != '']))
+        decoder_input = self.apply_teacher_forcing(y)
+        return x, decoder_input, y
+
+    def __len__(self):
+       return len(self.x)
+
+
+class PretrainingDataset(LightningDataModule):
+    def __init__(self, vocab_name, tokenization_mode="bekern", batch_size=1, num_workers=20) -> None:
         super().__init__()
-        self.data_path = config.data_path
-        self.vocab_name = config.vocab_name
+        self.data_path = "Data/GrandStaff/partitions_grandstaff/types/"
+        self.base_folder = 'Data/GrandStaff/'
+        self.vocab_name = vocab_name
         self.batch_size = batch_size
         self.num_workers = num_workers
-        self.train_dataset = SyntheticOMRDataset(data_path=f"{self.data_path}/train.txt", augment=True, fixed_systems=True, tokenization_mode=config.tokenization_mode)
-        self.val_dataset = SyntheticOMRDataset(data_path=f"{self.data_path}/val.txt", dataset_length=1000, augment=False, fixed_systems=True, tokenization_mode=config.tokenization_mode)
-        self.test_dataset = SyntheticOMRDataset(data_path=f"{self.data_path}/test.txt", dataset_length=1000, augment=False, fixed_systems=True, tokenization_mode=config.tokenization_mode)
+        self.train_dataset = SyntheticOMRDataset(data_path=f"{self.data_path}/train.txt", base_folder=self.base_folder, augment=True, tokenization_mode=tokenization_mode)
+        self.val_dataset = SyntheticOMRDataset(data_path=f"{self.data_path}/val.txt", base_folder=self.base_folder, dataset_length=1000, augment=False, tokenization_mode=tokenization_mode)
+        self.test_dataset = SyntheticOMRDataset(data_path=f"{self.data_path}/test.txt", base_folder=self.base_folder, dataset_length=1000, augment=False, tokenization_mode=tokenization_mode)
         w2i, i2w = check_and_retrieveVocabulary([self.train_dataset.get_gt(), self.val_dataset.get_gt(), self.test_dataset.get_gt()], "vocab/", f"{self.vocab_name}")#
     
         self.train_dataset.set_dictionaries(w2i, i2w)
@@ -238,104 +283,20 @@ class PretrainingLinesDataset(LightningDataModule):
     
     def test_dataloader(self):
         return torch.utils.data.DataLoader(self.test_dataset, batch_size=self.batch_size, num_workers=self.num_workers, collate_fn=batch_preparation_img2seq)
-    
-    
-class CLOMRDataset(OMRIMG2SEQDataset):
-    def __init__(self, data_config:DataConfig, cl_config:CLConfig, teacher_forcing_perc=0.2, augment=False) -> None:
-        super().__init__(teacher_forcing_perc, augment)
-        self.x, self.y = load_set(f"{data_config.data_path}{data_config.fold}/train.txt", base_folder=data_config.base_folder, fileformat=data_config.file_format, 
-                                  krn_type=data_config.krn_type, reduce_ratio=data_config.reduce_ratio)
-        self.reduce_ratio = data_config.reduce_ratio
-        self.generator = VerovioGenerator(gt_samples_path=f"{data_config.synth_path}/train.txt", fixed_number_systems=False, tokenization_method=data_config.tokenization_mode)
-        self.y = self.preprocess_gt(self.y, tokenization_method=data_config.tokenization_mode)
-        self.num_sys_gen = 1
-
-        # CL parameters
-        self.max_synth_prob = cl_config.max_synth_prob
-        self.min_synth_prob = cl_config.min_synth_prob
-        self.perc_synth_samples = cl_config.max_synth_prob
-        self.num_steps_decrease = cl_config.finetune_steps
-        self.increase_steps = cl_config.increase_steps
-        self.num_cl_steps = cl_config.num_cl_steps
-        self.max_cl_steps = self.increase_steps * self.num_cl_steps
-        self.curriculum_stage_beginning = cl_config.curriculum_stage_beginning
-        self.tokenization_mode = data_config.tokenization_mode
-        
-        self.skip_progressive = cl_config.skip_progressive
-        self.offset = 0
-        if self.skip_progressive:
-            self.offset = (self.num_cl_steps + self.curriculum_stage_beginning) * self.increase_steps 
-        self.skip_cl = cl_config.skip_cl
-    
-    def set_logger(self, logger):
-        self.logger = logger
-    
-    def erase_numbers_in_tokens_with_equal(self, tokens):
-       return [re.sub(r'(?<=\=)\d+', '', token) for token in tokens]
-
-    def linear_scheduler_synthetic(self):
-        return self.max_synth_prob + round(((self.trainer.global_step - self.max_cl_steps) - self.max_cl_steps) * (self.min_synth_prob - self.max_synth_prob) / self.num_steps_decrease, 4)
-
-    def set_trainer_data(self, trainer):
-        self.trainer = trainer
-    
-    def __getitem__(self, index):
-        stage = (self.trainer.global_step // self.increase_steps) + self.curriculum_stage_beginning
-        if (stage < self.num_cl_steps + self.curriculum_stage_beginning):
-            probability = 1
-            num_sys_to_gen = np.random.randint(1, stage)
-            #Set the variable gen_author_title to True if a random number if above 0.5
-            #add_texture = np.random.rand() > 0.3
-            gen_author_title = np.random.rand() > 0.5
-            cut_height = np.random.rand() > 0.7
-            x, y = self.generator.generate_score(num_sys_gen=num_sys_to_gen,
-                                                 check_generated_systems=True, cut_height=cut_height, add_texture=True, 
-                                                 include_author=gen_author_title, include_title=gen_author_title)
-        else:
-            if self.skip_cl:
-                probability = 0
-            else:
-                probability = max(self.min_synth_prob, self.linear_scheduler_synthetic())
-            if np.random.random() > probability:
-                x = self.x[index]
-                y = erase_whitespace_elements(self.y[index])
-            else:
-                num_sys_to_gen = np.random.randint(3, 4)
-                gen_author_title = np.random.rand() > 0.5
-                cut_height = np.random.rand() > 0.7
-                x, y = self.generator.generate_score(num_sys_gen=num_sys_to_gen,
-                                                     check_generated_systems=False, cut_height=cut_height, add_texture=True, 
-                                                     include_author=gen_author_title, include_title=gen_author_title)
-
-        if self.augment:
-            x = augment(x)
-        else:
-            x = convert_img_to_tensor(x)
-        
-        y = torch.from_numpy(np.asarray([self.w2i[token] for token in erase_whitespace_elements(y)]))
-        decoder_input = self.apply_teacher_forcing(y)
-
-        if self.logger != None:
-            self.logger.experiment.log({'synth_proba': probability, 'training_stage': stage})
-    
-        return x, decoder_input, y
 
 
-class GraphicCLDataModule(LightningDataModule):
-    def __init__(self, data_config:DataConfig, cl_config:CLConfig, fold=0, batch_size=1, num_workers=20) -> None:
+class FinetuningDataset(LightningDataModule):
+    def __init__(self, vocab_name, tokenization_mode="bekern", batch_size=1, num_workers=20) -> None:
         super().__init__()
-        self.data_path = f"{data_config.data_path}_{fold}"
-        self.synth_data_path = data_config.synth_path
-        self.vocab_name = data_config.vocab_name
+        self.data_path = "Data/Mozarteum/partitions_mozarteum/excerpts/fold_0"
+        self.base_folder = 'Data/Mozarteum/'
+        self.vocab_name = vocab_name
         self.batch_size = batch_size
         self.num_workers = num_workers
-        self.train_dataset = CLOMRDataset(data_config=data_config, cl_config=cl_config, augment=True)
-        
-        self.val_dataset = GrandStaffSingleSystem(data_path=f"{data_config.data_path}{fold}/val.txt",config=data_config, augment=False)
-        self.test_dataset = GrandStaffSingleSystem(data_path=f"{data_config.data_path}{fold}/test.txt", config=data_config, augment=False)
-        w2i, i2w = check_and_retrieveVocabulary([self.train_dataset.get_gt(), 
-                                                 self.val_dataset.get_gt(), 
-                                                 self.test_dataset.get_gt()], "vocab/", f"{self.vocab_name}")#
+        self.train_dataset = CurriculumTrainingDataset(data_path=f"{self.data_path}/train.txt", base_folder=self.base_folder, augment=True, tokenization_mode=tokenization_mode, reduce_ratio=1.0)
+        self.val_dataset = RealDataset(data_path=f"{self.data_path}/val.txt", base_folder=self.base_folder, augment=False, tokenization_mode=tokenization_mode, reduce_ratio=1.0)
+        self.test_dataset = RealDataset(data_path=f"{self.data_path}/test.txt", base_folder=self.base_folder, augment=False, tokenization_mode=tokenization_mode, reduce_ratio=1.0)
+        w2i, i2w = check_and_retrieveVocabulary([self.train_dataset.get_gt(), self.val_dataset.get_gt(), self.test_dataset.get_gt()], "vocab/", f"{self.vocab_name}")#
     
         self.train_dataset.set_dictionaries(w2i, i2w)
         self.val_dataset.set_dictionaries(w2i, i2w)
@@ -350,11 +311,16 @@ class GraphicCLDataModule(LightningDataModule):
     def test_dataloader(self):
         return torch.utils.data.DataLoader(self.test_dataset, batch_size=self.batch_size, num_workers=self.num_workers, collate_fn=batch_preparation_img2seq)
 
-
 if __name__ == "__main__":
-    pass
-    #train_dataset, val_dataset, test_dataset = load_data_single_pretraining("Data/GrandStaff/partitions_grandstaff/types/", "GrandStaffGlobal")
-    #next(iter(train_dataset))
-    #next(iter(val_dataset))
-    #data_module = PretrainingLinesDataset("Data/GrandStaff/partitions_grandstaff/types/", "GrandStaffGlobal")
-    #mozart = GrandStaffSingleSystem("Data/Mozarteum/partitions_mozarteum/excerpts/fold_0")
+    dataset = RealDataset(
+        data_path='Data/Mozarteum/partitions_mozarteum/excerpts/fold_0/train.txt',
+        base_folder='Data/Mozarteum/',
+        reduce_ratio=1.0,
+        tokenization_mode='bekern'
+    )
+
+    w2i, i2w = check_and_retrieveVocabulary([], "vocab/", "Mozarteum_BeKern")
+
+    dataset.set_dictionaries(w2i, i2w)
+
+    print(dataset.__getitem__(0))

@@ -1,9 +1,0 @@
-data_path: "Data/Mozarteum/partitions_mozarteum/excerpts/fold_"
-synth_path: "Data/GrandStaff/partitions_grandstaff/types/"
-vocab_name: "Mozarteum_BeKern"
-out_dir: "out/Mozarteum/SMTCNN_lines"
-krn_type: "ekern"
-reduce_ratio: 1.0
-base_folder: "Mozarteum"
-file_format: "jpg"
-tokenization_mode: "bekern"

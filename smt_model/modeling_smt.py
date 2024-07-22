@@ -1,9 +1,65 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-
+import numpy as np
 from torch.nn.init import xavier_uniform_
-from .PositionEncoding import PositionalEncoding1D
+from transformers import ConvNextConfig, ConvNextModel, PreTrainedModel
+from transformers.modeling_outputs import CausalLMOutputWithCrossAttentions
+
+from .configuration_smt import SMTConfig
+
+class PositionalEncoding2D(nn.Module):
+
+    def __init__(self, dim, h_max, w_max):
+        super(PositionalEncoding2D, self).__init__()
+        self.h_max = h_max
+        self.max_w = w_max
+        self.dim = dim
+        self.pe = torch.zeros((1, dim, h_max, w_max), device=torch.device('cuda' if torch.cuda.is_available() else 'cpu'), requires_grad=False)
+
+        div = torch.exp(-torch.arange(0., dim // 2, 2) / dim * torch.log(torch.tensor(10000.0))).unsqueeze(1)
+        w_pos = torch.arange(0., w_max)
+        h_pos = torch.arange(0., h_max)
+        self.pe[:, :dim // 2:2, :, :] = torch.sin(h_pos * div).unsqueeze(0).unsqueeze(3).repeat(1, 1, 1, w_max)
+        self.pe[:, 1:dim // 2:2, :, :] = torch.cos(h_pos * div).unsqueeze(0).unsqueeze(3).repeat(1, 1, 1, w_max)
+        self.pe[:, dim // 2::2, :, :] = torch.sin(w_pos * div).unsqueeze(0).unsqueeze(2).repeat(1, 1, h_max, 1)
+        self.pe[:, dim // 2 + 1::2, :, :] = torch.cos(w_pos * div).unsqueeze(0).unsqueeze(2).repeat(1, 1, h_max, 1)
+
+    def forward(self, x):
+        """
+        Add 2D positional encoding to x
+        x: (B, C, H, W)
+        """
+        return x + self.pe[:, :, :x.size(2), :x.size(3)]
+
+    def get_pe_by_size(self, h, w, device):
+        return self.pe[:, :, :h, :w].to(device)
+
+
+class PositionalEncoding1D(nn.Module):
+
+    def __init__(self, dim, len_max):
+        super(PositionalEncoding1D, self).__init__()
+        self.len_max = len_max
+        self.dim = dim
+        self.pe = torch.zeros((1, dim, len_max), device=torch.device('cuda' if torch.cuda.is_available() else 'cpu'), requires_grad=False)
+
+        div = torch.exp(-torch.arange(0., dim, 2) / dim * torch.log(torch.tensor(10000.0))).unsqueeze(1)
+        l_pos = torch.arange(0., len_max)
+        self.pe[:, ::2, :] = torch.sin(l_pos * div).unsqueeze(0)
+        self.pe[:, 1::2, :] = torch.cos(l_pos * div).unsqueeze(0)
+
+    def forward(self, x, start):
+        """
+        Add 1D positional encoding to x
+        x: (B, C, L)
+        start: index for x[:,:, 0]
+        """
+        if isinstance(start, int):
+            return x + self.pe[:, :, start:start+x.size(2)].to(x.device)
+        else:
+            for i in range(x.size(0)):
+                x[i] = x[i] + self.pe[0, :, start[i]:start[i]+x.size(2)]
+            return x
 
 class MHA(nn.Module):
     def __init__(self, embedding_dim, num_heads=None, dropout=0, proj_value=True) -> None:
@@ -163,7 +219,7 @@ class DecoderStack(nn.Module):
         }
 
         for i, dec_layer in enumerate(self.layers):
-            output, weights, weights_self = dec_layer(output, memory_key=memory_key,
+            output, weights_self, weights_cross = dec_layer(output, memory_key=memory_key,
                                         memory_value=memory_value,
                                         tgt_mask=tgt_mask,
                                         memory_mask=memory_mask,
@@ -178,7 +234,7 @@ class DecoderStack(nn.Module):
         
             if keep_all_weights:
                 all_weights["self"].append(weights_self)
-                all_weights["mix"].append(weights)
+                all_weights["mix"].append(weights_cross)
 
         if use_cache:
             cache = torch.cat([cache, torch.stack(cache_t, dim=0)], dim=1) if cache is not None else torch.stack(cache_t, dim=0)
@@ -189,7 +245,7 @@ class DecoderStack(nn.Module):
         if keep_all_weights:
             return output, all_weights, cache
 
-        return output, weights, cache
+        return output, weights_cross, cache
 
 
 class Decoder(nn.Module):
@@ -213,13 +269,14 @@ class Decoder(nn.Module):
     def set_transcription_mode(self):
         self.decoder.set_transcription_mode()
 
-    def forward(self, raw_features_1D, enhanced_features_1D, tokens, reduced_size, token_len, features_size, start=0, hidden_predict=None, num_pred=None, cache=None, keep_all_weights=True):
+    def forward(self, raw_features_1D, enhanced_features_1D, tokens, 
+                reduced_size, token_len, features_size, hidden_predict=None, num_pred=None, cache=None, keep_all_weights=True):
         
         device = raw_features_1D.device
         
         pos_tokens = self.embedding(tokens).permute(0,2,1)
 
-        pos_tokens = self.positional_1D(pos_tokens, start=start)
+        pos_tokens = self.positional_1D(pos_tokens, start=0)
         pos_tokens = pos_tokens.permute(2,0,1).contiguous()
 
         if num_pred is None:
@@ -277,3 +334,75 @@ class Decoder(nn.Module):
             return torch.logical_not(
                 torch.logical_and(torch.tril(torch.ones((target_len, target_len), dtype=torch.bool, device=device), diagonal=0),
                                   torch.triu(torch.ones((target_len, target_len), dtype=torch.bool, device=device), diagonal=-self.dec_attn_win+1)))
+
+class SMTOutput(CausalLMOutputWithCrossAttentions):
+    """This is a nice output wrapper"""
+
+class SMTModelForCausalLM(PreTrainedModel):
+    config_class = SMTConfig
+
+    def __init__(self, config:SMTConfig):
+        super().__init__(config)
+        #self.encoder = ConvNextEncoder(config.in_channels, stem_features=64, depths=[4,6], widths=[128, 256])
+        next_config = ConvNextConfig(num_channels=config.in_channels, num_stages=3, hidden_sizes=[64, 128, 256], depths=[3,3,9])
+        self.encoder = ConvNextModel(next_config)
+        self.decoder = Decoder(d_model=config.d_model, dim_ff=config.dim_ff, n_layers=config.num_dec_layers, 
+                               maxlen=config.maxlen, out_categories=config.out_categories, attention_window=config.maxlen + 1)
+        
+        self.positional_2D = PositionalEncoding2D(config.d_model, config.maxh, config.maxw)
+
+        self.padding_token = config.padding_token
+        self.loss = nn.CrossEntropyLoss(ignore_index=self.padding_token)
+
+        self.w2i = config.w2i
+        self.i2w = config.i2w
+        self.maxlen = config.maxlen
+        self.out_dir= config.out_dir
+    
+    def forward_encoder(self, x):
+        return self.encoder(pixel_values=x).last_hidden_state
+    
+    def forward_decoder(self, encoder_output, y_pred):
+        b, _, _, _ = encoder_output.size()
+        reduced_size = [s.shape[:2] for s in encoder_output]
+        ylens = [len(sample) for sample in y_pred]
+
+        pos_features = self.positional_2D(encoder_output)
+        features = torch.flatten(encoder_output, start_dim=2, end_dim=3).permute(2,0,1)
+        enhanced_features = features
+        enhanced_features = torch.flatten(pos_features, start_dim=2, end_dim=3).permute(2,0,1)
+        output, predictions, _, _, weights = self.decoder(features, enhanced_features, y_pred[:, :], reduced_size, 
+                                                           [max(ylens) for _ in range(b)], encoder_output.size(), 
+                                                           cache=None, keep_all_weights=True)
+        return SMTOutput(
+            logits=predictions,
+            hidden_states=output,
+            attentions=weights["self"],
+            cross_attentions=weights["mix"]
+        )
+
+    def forward(self, x, y_pred, labels=None):
+        x = self.forward_encoder(x)
+        output = self.forward_decoder(x, y_pred)
+        
+        if labels is not None:
+            output.loss = self.loss(output.logits, labels[:, :-1])
+        
+        return output
+        
+    
+    def predict(self, input, convert_to_str=False):
+        predicted_sequence = torch.from_numpy(np.asarray([self.w2i['<bos>']])).to(input.device).unsqueeze(0)
+        encoder_output = self.forward_encoder(input)
+        text_sequence = []
+        for i in range(self.maxlen - predicted_sequence.shape[-1]):
+            predictions = self.forward_decoder(encoder_output, predicted_sequence.long())
+            predicted_token = torch.argmax(predictions.logits[:, :, -1]).item()
+            predicted_sequence = torch.cat([predicted_sequence, torch.argmax(predictions.logits[:, :, -1], dim=1, keepdim=True)], dim=1)
+            if convert_to_str:
+                predicted_token = f"{predicted_token}"
+            if self.i2w[predicted_token] == '<eos>':
+                break
+            text_sequence.append(self.i2w[predicted_token])
+        
+        return text_sequence, predictions
