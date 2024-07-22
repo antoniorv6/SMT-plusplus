@@ -109,8 +109,8 @@ class SMT(L.LightningModule):
 
     def on_train_epoch_end(self):
         #plot the worst training loss image in wandb
-        self.logger.experiment.log({"worst_training_loss_image": [wandb.Image(self.worst_loss_image.squeeze(0).cpu().numpy())]})
-        self.logger.experiment.log({"best_training_loss_image": [wandb.Image(self.best_loss_image.squeeze(0).cpu().numpy())]})
+        #self.logger.experiment.log({"worst_training_loss_image": [wandb.Image(self.worst_loss_image.squeeze(0).cpu().numpy())]})
+        #self.logger.experiment.log({"best_training_loss_image": [wandb.Image(self.best_loss_image.squeeze(0).cpu().numpy())]})
         
         self.worst_training_loss = -1
         self.best_training_loss = 1e10

@@ -9,17 +9,17 @@ def erase_numbers_in_tokens_with_equal(tokens):
 def erase_whitespace_elements(tokens):
     return [token for token in tokens if token != ""]
 
-ytrain = [ ['<bos>'] + erase_whitespace_elements("".join(sequence).replace("<s>", " <s> ").replace("<b>", " <b> ").replace("<t>", " <t> ").replace("·", " ").replace("@", " ").split(" ")) + ['<eos>'] for sequence in load_data_from_krn("Data/GrandStaff/partitions_grandstaff/types/train.txt", krn_type="ekrn", tokenization_mode="bekern")] 
-yval = [ ['<bos>'] + erase_whitespace_elements("".join(sequence).replace("<s>", " <s> ").replace("<b>", " <b> ").replace("<t>", " <t> ").replace("·", " ").replace("@", " ").split(" ")) + ['<eos>'] for sequence in load_data_from_krn("Data/GrandStaff/partitions_grandstaff/types/val.txt", krn_type="ekrn", tokenization_mode="bekern")]
-ytest = [ ['<bos>'] + erase_whitespace_elements("".join(sequence).replace("<s>", " <s> ").replace("<b>", " <b> ").replace("<t>", " <t> ").replace("·", " ").replace("@", " ").split(" ")) + ['<eos>'] for sequence in load_data_from_krn("Data/GrandStaff/partitions_grandstaff/types/test.txt", krn_type="ekrn", tokenization_mode="bekern")]
+ytrain = [ ['<bos>'] + erase_whitespace_elements("".join(sequence).replace("<s>", " <s> ").replace("<b>", " <b> ").replace("<t>", " <t> ").replace("·", " ").replace("@", " ").split(" ")) + ['<eos>'] for sequence in load_data_from_krn("Data/GrandStaff/partitions_grandstaff/types/train.txt", krn_type="ekrn", tokenization_mode="standard")] 
+yval = [ ['<bos>'] + erase_whitespace_elements("".join(sequence).replace("<s>", " <s> ").replace("<b>", " <b> ").replace("<t>", " <t> ").replace("·", " ").replace("@", " ").split(" ")) + ['<eos>'] for sequence in load_data_from_krn("Data/GrandStaff/partitions_grandstaff/types/val.txt", krn_type="ekrn", tokenization_mode="standard")]
+ytest = [ ['<bos>'] + erase_whitespace_elements("".join(sequence).replace("<s>", " <s> ").replace("<b>", " <b> ").replace("<t>", " <t> ").replace("·", " ").replace("@", " ").split(" ")) + ['<eos>'] for sequence in load_data_from_krn("Data/GrandStaff/partitions_grandstaff/types/test.txt", krn_type="ekrn", tokenization_mode="standard")]
 
 #fpytrain = [ ['<bos>'] + erase_whitespace_elements("".join(sequence).replace("<s>", " <s> ").replace("<b>", " <b> ").replace("<t>", " <t> ").replace("·", " ").replace("@", " ").split(" ")) + ['<eos>'] for sequence in load_data_from_krn("Data/PolishScores/partitions_polishscores/excerpts/fold_0/train.txt", krn_type="ekrn", tokenization_mode="bekern", base_folder="PolishScores")]
 #fpyval = [ ['<bos>'] + erase_whitespace_elements("".join(sequence).replace("<s>", " <s> ").replace("<b>", " <b> ").replace("<t>", " <t> ").replace("·", " ").replace("@", " ").split(" ")) + ['<eos>'] for sequence in load_data_from_krn("Data/PolishScores/partitions_polishscores/excerpts/fold_0/val.txt", krn_type="ekrn", tokenization_mode="bekern", base_folder="PolishScores")]
 #fpytest = [ ['<bos>'] + erase_whitespace_elements("".join(sequence).replace("<s>", " <s> ").replace("<b>", " <b> ").replace("<t>", " <t> ").replace("·", " ").replace("@", " ").split(" ")) + ['<eos>'] for sequence in load_data_from_krn("Data/PolishScores/partitions_polishscores/excerpts/fold_0/test.txt", krn_type="ekrn", tokenization_mode="bekern", base_folder="PolishScores")]
 
-fpytrain = [ ['<bos>'] + erase_whitespace_elements("".join(sequence).replace("<s>", " <s> ").replace("<b>", " <b> ").replace("<t>", " <t> ").replace("·", " ").replace("@", " ").split(" ")) + ['<eos>'] for sequence in load_data_from_krn("Data/Mozarteum/partitions_mozarteum/excerpts/fold_0/train.txt", krn_type="ekern", tokenization_mode="bekern", base_folder="Mozarteum")]
-fpyval = [ ['<bos>'] + erase_whitespace_elements("".join(sequence).replace("<s>", " <s> ").replace("<b>", " <b> ").replace("<t>", " <t> ").replace("·", " ").replace("@", " ").split(" ")) + ['<eos>'] for sequence in load_data_from_krn("Data/Mozarteum/partitions_mozarteum/excerpts/fold_0/val.txt", krn_type="ekern", tokenization_mode="bekern", base_folder="Mozarteum")]
-fpytest = [ ['<bos>'] + erase_whitespace_elements("".join(sequence).replace("<s>", " <s> ").replace("<b>", " <b> ").replace("<t>", " <t> ").replace("·", " ").replace("@", " ").split(" ")) + ['<eos>'] for sequence in load_data_from_krn("Data/Mozarteum/partitions_mozarteum/excerpts/fold_0/test.txt", krn_type="ekern", tokenization_mode="bekern", base_folder="Mozarteum")]
+fpytrain = [ ['<bos>'] + erase_whitespace_elements("".join(sequence).replace("<s>", " <s> ").replace("<b>", " <b> ").replace("<t>", " <t> ").replace("·", " ").replace("@", " ").split(" ")) + ['<eos>'] for sequence in load_data_from_krn("Data/Mozarteum/partitions_mozarteum/excerpts/fold_0/train.txt", krn_type="ekern", tokenization_mode="standard", base_folder="Mozarteum")]
+fpyval = [ ['<bos>'] + erase_whitespace_elements("".join(sequence).replace("<s>", " <s> ").replace("<b>", " <b> ").replace("<t>", " <t> ").replace("·", " ").replace("@", " ").split(" ")) + ['<eos>'] for sequence in load_data_from_krn("Data/Mozarteum/partitions_mozarteum/excerpts/fold_0/val.txt", krn_type="ekern", tokenization_mode="standard", base_folder="Mozarteum")]
+fpytest = [ ['<bos>'] + erase_whitespace_elements("".join(sequence).replace("<s>", " <s> ").replace("<b>", " <b> ").replace("<t>", " <t> ").replace("·", " ").replace("@", " ").split(" ")) + ['<eos>'] for sequence in load_data_from_krn("Data/Mozarteum/partitions_mozarteum/excerpts/fold_0/test.txt", krn_type="ekern", tokenization_mode="standard", base_folder="Mozarteum")]
 print(len(fpyval))
 print(len(fpytrain))
 print(len(fpytest))
@@ -27,8 +27,8 @@ print(len(fpytest))
 #fpyval = [ ['<bos>'] + erase_whitespace_elements("".join(sequence).replace("<s>", " <s> ").replace("<b>", " <b> ").replace("<t>", " <t> ").replace("·", " ").replace("@", " ").split(" ")) + ['<eos>'] for sequence in load_data_from_krn("Data/FPGrandStaff/partitions_fpgrandstaff/excerpts/fold_0/val.txt", krn_type="ekrn", tokenization_mode="ekern", base_folder="FPGrandStaff")]
 #fpytest = [ ['<bos>'] + erase_whitespace_elements("".join(sequence).replace("<s>", " <s> ").replace("<b>", " <b> ").replace("<t>", " <t> ").replace("·", " ").replace("@", " ").split(" ")) + ['<eos>'] for sequence in load_data_from_krn("Data/FPGrandStaff/partitions_fpgrandstaff/excerpts/fold_0/test.txt", krn_type="ekrn", tokenization_mode="ekern", base_folder="FPGrandStaff")]
 
-gw2i, gi2w = check_and_retrieveVocabulary([ytrain, yval, ytest], "vocab/", f"GrandStaff_BeKern", save=False)
-fpw2i, fpi2w = check_and_retrieveVocabulary([ytrain, yval, ytest, fpytrain, fpyval, fpytest], "vocab/", f"Mozarteum_BeKern", save=True)
+gw2i, gi2w = check_and_retrieveVocabulary([ytrain, yval, ytest], "vocab/", f"GrandStaff_Kern", save=False)
+fpw2i, fpi2w = check_and_retrieveVocabulary([ytrain, yval, ytest, fpytrain, fpyval, fpytest], "vocab/", f"Mozarteum_Kern", save=False)
 
 #Compute the maximum, minimum and average sequence length of the sequences between ytrain, yval and ytest
 max_len = max([len(sequence) for sequence in ytrain + yval + ytest])
@@ -54,10 +54,10 @@ print(f"Number of tokens in PolishScores: {len(fpw2i)}")
 #Calculate the number of tokens that are in fpw2i, but not in gw2i
 fpw2i_not_gw2i = set(fpw2i.keys()) - set(gw2i.keys())
 print(f"Number of tokens in PolishScores that are not in GrandStaff: {len(fpw2i_not_gw2i)}")
-print(fpw2i_not_gw2i)
+#print(fpw2i_not_gw2i)
 #Calculate the number of tokens that are both in fpw2i and gw2i
 fpw2i_and_gw2i = set(fpw2i.keys()) & set(gw2i.keys())
 print(f"Number of tokens in PolishScores that are in GrandStaff: {len(fpw2i_and_gw2i)}")
 
 #print(fpw2i_not_gw2i)
-print(fpw2i)
+#print(fpw2i)

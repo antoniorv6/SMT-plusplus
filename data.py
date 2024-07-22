@@ -150,6 +150,9 @@ class OMRIMG2SEQDataset(Dataset):
             krn = krn.split(" ")
                     
             Y[idx] = self.erase_numbers_in_tokens_with_equal(['<bos>'] + krn[4:-1] + ['<eos>'])
+            print(Y[idx])
+            import sys
+            sys.exit()
             
         return Y
 
@@ -302,9 +305,7 @@ class CLOMRDataset(OMRIMG2SEQDataset):
                 cut_height = np.random.rand() > 0.7
                 x, y = self.generator.generate_score(num_sys_gen=num_sys_to_gen,
                                                      check_generated_systems=False, cut_height=cut_height, add_texture=True, 
-                                                     include_author=gen_author_title, include_title=gen_author_title, 
-                                                     page_size=[self.x[index].shape[0]/self.reduce_ratio, 
-                                                                self.x[index].shape[1]/self.reduce_ratio])
+                                                     include_author=gen_author_title, include_title=gen_author_title)
 
         if self.augment:
             x = augment(x)
@@ -321,7 +322,7 @@ class CLOMRDataset(OMRIMG2SEQDataset):
 
 
 class GraphicCLDataModule(LightningDataModule):
-    def __init__(self, data_config:DataConfig, cl_config:CLConfig, fold=0, batch_size=1, num_workers=15) -> None:
+    def __init__(self, data_config:DataConfig, cl_config:CLConfig, fold=0, batch_size=1, num_workers=20) -> None:
         super().__init__()
         self.data_path = f"{data_config.data_path}_{fold}"
         self.synth_data_path = data_config.synth_path
@@ -351,7 +352,9 @@ class GraphicCLDataModule(LightningDataModule):
 
 
 if __name__ == "__main__":
+    pass
     #train_dataset, val_dataset, test_dataset = load_data_single_pretraining("Data/GrandStaff/partitions_grandstaff/types/", "GrandStaffGlobal")
     #next(iter(train_dataset))
     #next(iter(val_dataset))
-    data_module = PretrainingLinesDataset("Data/GrandStaff/partitions_grandstaff/types/", "GrandStaffGlobal")
+    #data_module = PretrainingLinesDataset("Data/GrandStaff/partitions_grandstaff/types/", "GrandStaffGlobal")
+    #mozart = GrandStaffSingleSystem("Data/Mozarteum/partitions_mozarteum/excerpts/fold_0")

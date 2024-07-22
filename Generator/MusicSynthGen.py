@@ -24,39 +24,6 @@ def clean_kern(krn, avoid_tokens=['*Xped', '*tremolo', '*ped', '*Xtuplet', '*tup
                 
     return "\n".join(newkrn)
 
-def detect_spine_errors(string):
-    lines = string.split("\n")
-    previous_tabs = 0
-    for idx, line in enumerate(lines[:-1]):
-        # count the number of '\t characters
-        tabs = 0
-        for char in line:
-            if char == '\t':
-                tabs += 1
-        
-        if previous_tabs > 0:
-            if previous_tabs < tabs:
-                #print(lines[idx-1].replace("\n", "").split('\t'))
-                #print(lines[idx].replace("\n", "").split('\t'))
-                
-                if not "*^" in lines[idx-1].replace("\n", "").split('\t'):
-                    return False
-
-            if previous_tabs > tabs:
-                #print(lines[idx-1].replace("\n", "").split('\t'))
-                #print(lines[idx].replace("\n", "").split('\t'))
-                if not "*v" in lines[idx-1].replace("\n", "").split('\t'):
-                    return False
-            
-            if previous_tabs == tabs:
-                if "*^" in lines[idx-1].replace("\n", "").split('\t') or "*v" in lines[idx-1].replace("\n", "").split('\t'):
-                    return False
-
-        
-        previous_tabs = tabs
-        
-        
-    return True
 
 def simplify_tokens(tokens):
     simplified_tokens = []
@@ -130,37 +97,24 @@ class VerovioGenerator():
         return beats
 
     def filter_system_continuation(self, system):
-        #print(system)
         index = 0
-        for idx, token in enumerate(system):
-            if "*" not in token and token != '<t>' and token != '<b>':
-                index = idx
+        # Locate where the rule metrics end in the system
+        for i, item in enumerate(system):
+            if item == "=-":
+                index = i
                 break
         
-        filtered_system = [token for token in system[:index] if '*' == token or '*^' == token or '*v' == token]
-        filtered_system = [token for token in ' <t> '.join(filtered_system).split(' ')] + ['<b>']
-        
-        return filtered_system + system[index:]
-    
-    #def filter_system_continuation(self, system):
-    #    index = 0
-    #    # Locate where the rule metrics end in the system
-    #    for i, item in enumerate(system):
-    #        if item == "=":
-    #            index = i
-    #            break
-    #    
-    #    to_filter = system[:index]
-    #    filtered = []
-    #    idx = 0
-    #    while idx < len(to_filter):
-    #        element = to_filter[idx]
-    #        if 'clef' not in element and 'M' not in element and 'k' not in element:
-    #            filtered.append(element)
-    #            filtered.append(to_filter[idx+1])
-    #        idx+=2
-#
-    #    return filtered + system[index:]
+        to_filter = system[:index]
+        filtered = []
+        idx = 0
+        while idx < len(to_filter):
+            element = to_filter[idx]
+            if 'clef' not in element and 'M' not in element and 'k' not in element:
+                filtered.append(element)
+                filtered.append(to_filter[idx+1])
+            idx+=2
+
+        return filtered + system[index:]
     
     def count_class_occurrences(self, svg_file, class_name):
         root = ET.fromstring(svg_file)
@@ -206,7 +160,7 @@ class VerovioGenerator():
         if texture.size[0] < img_width or texture.size[1] < img_height:
             texture = texture.resize((img_width, img_height))
         
-        #x = self.inkify_image(x)
+        x = self.inkify_image(x)
         x = np.array(x)
         music_image = Image.fromarray(x)
         left = random.randint(0, texture.size[0] - img_width)
@@ -232,20 +186,18 @@ class VerovioGenerator():
                 length = len(systems)
             
             sequence = random.choice(systems)
-            krnseq = "".join(sequence[:-1]).replace("<kp>", "*").replace("@", "").replace('·', '').replace("<s>", " ").replace("<b>", "\n").replace("<t>", "\t").replace("**ekern", "**kern")
-            if detect_spine_errors(krnseq):
-                self.tk.loadData(krnseq)
-                self.tk.setOptions({"pageWidth": 2100, "footer": 'none', 
+            krnseq = "".join(sequence[:-1]).replace("@", "").replace("<s>", " ").replace("<b>", "\n").replace("<t>", "\t").replace("**ekern", "**kern")
+            
+            self.tk.loadData(krnseq)
+            self.tk.setOptions({"pageWidth": 2100, "footer": 'none', 
                                 'barLineWidth': rfloat(0.3, 0.8), 'beamMaxSlope': rfloat(10,20), 
                                 'staffLineWidth': rfloat(0.1, 0.3), 'spacingStaff': rfloat(1, 12)})
             
-                self.tk.getPageCount()
-                svg = self.tk.renderToSVG()
-                svg = svg.replace("overflow=\"inherit\"", "overflow=\"visible\"")
+            self.tk.getPageCount()
+            svg = self.tk.renderToSVG()
+            svg = svg.replace("overflow=\"inherit\"", "overflow=\"visible\"")
 
-                generated_systems = self.count_class_occurrences(svg_file=svg, class_name='grpSym')
-            else:
-                generated_systems = np.inf
+            generated_systems = self.count_class_occurrences(svg_file=svg, class_name='grpSym')
         
         pngfile = svg2png(bytestring=svg, background_color='white')
         pngfile = cv2.imdecode(np.frombuffer(pngfile, np.uint8), -1)
@@ -272,7 +224,7 @@ class VerovioGenerator():
         if self.tokenization_method == "bekern":
             sequence = "".join(sequence).replace("<s>", " <s> ").replace("<b>", " <b> ").replace("<t>", " <t> ").replace("·", " ").replace("@", " ").split(" ")
 
-        return x, ['<bos>'] + [token for token in sequence[4:-1] if token != ''] + ['<eos>']
+        return x, ['<bos>'] + sequence[4:-1] + ['<eos>']
 
 
     def generate_score(self, num_sys_gen=1, padding=10, 
@@ -302,54 +254,49 @@ class VerovioGenerator():
 
             sequence = []
 
-            sys_idx = 0
             if n_sys_generate > 1:
                 first_seq = "".join(random_systems[0]).replace("<s>", " <s> ").replace("<b>", " <b> ").replace("<t>", " <t> ").split(" ")
                 sequence = ['=' if token == '==' else token for token in first_seq[:-5]]
-                #with open(f"{sys_idx}.krn", "w") as krnfile:
-                #    krnfile.write("".join(random_systems[0]).replace("<s>", " ").replace("<b>", "\n").replace("<t>", "\t").replace("**ekern_1.0", "**kern"))
                 for seq in random_systems[1:-1]:
-                    sys_idx+=1
                     seq = "".join(seq).replace("<s>", " <s> ").replace("<b>", " <b> ").replace("<t>", " <t> ").split(" ")
                     sequence += self.filter_system_continuation(seq[4:-5])
-                    #with open(f"{sys_idx}.krn", "w") as krnfile:
-                    #    krnfile.write("".join(self.filter_system_continuation(seq[4:-5])).replace("<s>", " ").replace("<b>", "\n").replace("<t>", "\t").replace("**ekern_1.0", "**kern"))
-                    #with open(f"int_{sys_idx}.krn", "w") as krnfile:
-                    #   krnfile.write("".join(sequence).replace("<s>", " ").replace("<b>", "\n").replace("<t>", "\t").replace("**ekern_1.0", "**kern"))
                 
                 last_seq = "".join(random_systems[-1]).replace("<s>", " <s> ").replace("<b>", " <b> ").replace("<t>", " <t> ").split(" ")
                 sequence += self.filter_system_continuation(last_seq[4:])
-                #with open(f"int_last.krn", "w") as krnfile:
-                #       krnfile.write("".join(sequence).replace("<s>", " ").replace("<b>", "\n").replace("<t>", "\t").replace("**ekern_1.0", "**kern"))
-                #with open(f"{sys_idx+1}.krn", "w") as krnfile:
-                #    krnfile.write("".join(self.filter_system_continuation(last_seq[4:])).replace("<s>", " ").replace("<b>", "\n").replace("<t>", "\t").replace("**ekern_1.0", "**kern"))
             else:
                 sequence = random_systems[0]
-            
-            # Remove empty lines
             
             preseq = ""
             preseq += f"!!!OTL:{self.title_generator.sentence()}\n" if include_title else ""
             preseq += f"!!!COM:{names.get_full_name()}\n" if include_author else ""
             
-            krnseq = preseq + "".join(sequence[:-1]).replace("<kp>", "*").replace("@", "").replace("<s>", " ").replace("<b>", "\n").replace("<t>", "\t").replace("**ekern", "**kern").replace("·", "")
-            krnseq = "\n".join([line for line in krnseq.split("\n") if line != ''])
-            
-            if detect_spine_errors(krnseq):
-                self.tk.loadData(krnseq)
+            krnseq = preseq + "".join(sequence[:-1]).replace("@", "").replace("<s>", " ").replace("<b>", "\n").replace("<t>", "\t").replace("**ekern", "**kern")
 
+            #with open("test.krn", "w") as krnfile:
+            #    krnfile.write(krnseq)
+            #with open("init.krn", "w") as krnfile:
+            #    krnfile.write("".join(random_systems[0]).replace("<s>", " ").replace("<b>", "\n").replace("<t>", "\t").replace("**ekern_1.0", "**kern"))
+            #with open("end.krn", "w") as krnfile:
+            #    krnfile.write("".join(random_systems[-1]).replace("<s>", " ").replace("<b>", "\n").replace("<t>", "\t").replace("**ekern_1.0", "**kern"))   
+            
+            self.tk.loadData(krnseq)
+            
+            if page_size != None:
+                self.tk.setOptions({"pageWidth": page_size[1], "pageHeight": page_size[0], "footer": 'none', 'barLineWidth': rfloat(0.3, 0.8), 'beamMaxSlope': rfloat(10,20), 'staffLineWidth': rfloat(0.1, 0.3), 'spacingStaff': rfloat(1, 12)})
+            #if random_margins:
+            #    self.tk.setOptions({"pageWidth": 2100, "pageMarginLeft":margins[0], "pageMarginRight":margins[1], "pageMarginTop":margins[2], "pageMarginBottom":margins[3], 
+            #                    "footer": 'none', 'barLineWidth': rfloat(0.3, 0.8), 'beamMaxSlope': rfloat(10,20), 'staffLineWidth': rfloat(0.1, 0.3), 'spacingStaff': rfloat(1, 12)})
+            else:
                 self.tk.setOptions({"pageWidth": 2100, "footer": 'none', 'barLineWidth': rfloat(0.3, 0.8), 'beamMaxSlope': rfloat(10,20), 'staffLineWidth': rfloat(0.1, 0.3), 'spacingStaff': rfloat(1, 12)})
 
-                self.tk.getPageCount()
-                svg = self.tk.renderToSVG()
-                svg = svg.replace("overflow=\"inherit\"", "overflow=\"visible\"")
-
-                if check_generated_systems == True:
-                    generated_systems = self.count_class_occurrences(svg_file=svg, class_name='grpSym')
-                else:
-                    generated_systems = n_sys_generate
+            self.tk.getPageCount()
+            svg = self.tk.renderToSVG()
+            svg = svg.replace("overflow=\"inherit\"", "overflow=\"visible\"")
+            
+            if check_generated_systems == True:
+                generated_systems = self.count_class_occurrences(svg_file=svg, class_name='grpSym')
             else:
-                generated_systems = np.inf
+                generated_systems = n_sys_generate
         
         pngfile = svg2png(bytestring=svg, background_color='white')
         pngfile = cv2.imdecode(np.frombuffer(pngfile, np.uint8), -1)
@@ -367,7 +314,7 @@ class VerovioGenerator():
             if texture.size[0] < img_width or texture.size[1] < img_height:
                 texture = texture.resize((img_width, img_height))
             
-            #x = self.inkify_image(x)
+            x = self.inkify_image(x)
             x = np.array(x)
             music_image = Image.fromarray(x)
             left = random.randint(0, texture.size[0] - img_width)
@@ -392,4 +339,5 @@ class VerovioGenerator():
         if self.tokenization_method == "bekern":
             sequence = "".join(sequence).replace("<s>", " <s> ").replace("<b>", " <b> ").replace("<t>", " <t> ").replace("·", " ").replace("@", " ").split(" ")
             
+
         return x, ['<bos>'] + sequence[4:-1] + ['<eos>']
