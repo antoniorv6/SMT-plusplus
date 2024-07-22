@@ -1,0 +1,15 @@
+transformers
+torch
+torchvision
+lightning
+torchinfo
+wonderwords
+names
+cairosvg
+verovio
+wand
+opencv-python
+rich
+loguru
+gradio
+wandb
