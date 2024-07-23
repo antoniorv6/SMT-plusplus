@@ -160,4 +160,5 @@ predictions_by_SER/
 predictions_polish_by_SER
 old.py
 joblib_cache/
+SMTPP/*
 

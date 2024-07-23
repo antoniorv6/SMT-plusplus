@@ -3,9 +3,6 @@ from data import FinetuningDataset
 from smt_trainer import SMTPP_Trainer
 
 from lightning.pytorch import Trainer
-from lightning.pytorch.callbacks import ModelCheckpoint
-from lightning.pytorch.loggers import WandbLogger
-from lightning.pytorch.callbacks.early_stopping import EarlyStopping
 
 torch.set_float32_matmul_precision('high')
 
