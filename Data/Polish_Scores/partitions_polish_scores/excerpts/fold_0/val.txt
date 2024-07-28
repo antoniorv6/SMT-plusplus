@@ -1,0 +1,10 @@
+polish_scores_dataset/72.ekern
+polish_scores_dataset/74.ekern
+polish_scores_dataset/19.ekern
+polish_scores_dataset/29.ekern
+polish_scores_dataset/40.ekern
+polish_scores_dataset/108.ekern
+polish_scores_dataset/51.ekern
+polish_scores_dataset/90.ekern
+polish_scores_dataset/117.ekern
+polish_scores_dataset/25.ekern

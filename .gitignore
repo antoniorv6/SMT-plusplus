@@ -137,6 +137,8 @@ Data/GrandStaff/grandstaff_dataset
 Data/GrandStaff/grandstaff_dataset_old
 Data/FPGrandStaff/fp_grandstaff_dataset
 Data/StringQuartets/quartets_dataset
+Data/Polish_Scores/polish_scores_dataset
+Data/Polish_Scores/normalized_images
 Data/PolishScores/polish_corpus_v0_dataset
 Data/PolishScores/polish_corpus_v1_dataset
 Data/PolishScores/polish_corpus_v2_dataset

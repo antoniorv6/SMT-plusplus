@@ -20,7 +20,7 @@ from wonderwords import RandomSentence
 
 #memory = joblib.memory.Memory("./joblib_cache", mmap_mode="r", verbose=0)
 
-def clean_kern(krn, avoid_tokens=['*Xped', '*tremolo', '*ped', '*Xtuplet', '*tuplet', "*Xtremolo", '*cue', '*Xcue', '*rscale:1/2', '*rscale:1', '*kcancel', '*below']):
+def clean_kern(krn, avoid_tokens=['*Xped', '*staff1', '*staff2', '*tremolo', '*ped', '*Xtuplet', '*tuplet', "*Xtremolo", '*cue', '*Xcue', '*rscale:1/2', '*rscale:1', '*kcancel', '*below']):
     krn = krn.split('\n')
     newkrn = []
     # Remove the lines that contain the avoid tokens

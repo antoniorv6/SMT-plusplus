@@ -5,6 +5,7 @@ import torch
 import random
 import numpy as np
 from rich import progress
+from ExperimentConfig import ExperimentConfig
 from Generator.SynthGenerator import VerovioGenerator
 from data_augmentation.data_augmentation import augment, convert_img_to_tensor
 from utils.vocab_utils import check_and_retrieveVocabulary
@@ -259,16 +260,18 @@ class CurriculumTrainingDataset(OMRIMG2SEQDataset):
 
 
 class PretrainingDataset(LightningDataModule):
-    def __init__(self, vocab_name, tokenization_mode="bekern", batch_size=1, num_workers=20) -> None:
+    def __init__(self, config:ExperimentConfig) -> None:
         super().__init__()
-        self.data_path = "Data/GrandStaff/partitions_grandstaff/types/"
-        self.base_folder = 'Data/GrandStaff/'
-        self.vocab_name = vocab_name
-        self.batch_size = batch_size
-        self.num_workers = num_workers
-        self.train_dataset = SyntheticOMRDataset(data_path=f"{self.data_path}/train.txt", base_folder=self.base_folder, augment=True, tokenization_mode=tokenization_mode)
-        self.val_dataset = SyntheticOMRDataset(data_path=f"{self.data_path}/val.txt", base_folder=self.base_folder, dataset_length=1000, augment=False, tokenization_mode=tokenization_mode)
-        self.test_dataset = SyntheticOMRDataset(data_path=f"{self.data_path}/test.txt", base_folder=self.base_folder, dataset_length=1000, augment=False, tokenization_mode=tokenization_mode)
+        self.data_path = config.data.data_path
+        self.base_folder = config.data.base_folder
+        self.vocab_name = config.data.vocab_name
+        self.batch_size = config.data.batch_size
+        self.num_workers = config.data.num_workers
+        self.tokenization_mode = config.data.tokenization_mode
+
+        self.train_dataset = SyntheticOMRDataset(data_path=f"{self.data_path}/train.txt", base_folder=self.base_folder, augment=True, tokenization_mode=self.tokenization_mode)
+        self.val_dataset = SyntheticOMRDataset(data_path=f"{self.data_path}/val.txt", base_folder=self.base_folder, dataset_length=1000, augment=False, tokenization_mode=self.tokenization_mode)
+        self.test_dataset = SyntheticOMRDataset(data_path=f"{self.data_path}/test.txt", base_folder=self.base_folder, dataset_length=1000, augment=False, tokenization_mode=self.tokenization_mode)
         w2i, i2w = check_and_retrieveVocabulary([self.train_dataset.get_gt(), self.val_dataset.get_gt(), self.test_dataset.get_gt()], "vocab/", f"{self.vocab_name}")#
     
         self.train_dataset.set_dictionaries(w2i, i2w)
@@ -286,16 +289,17 @@ class PretrainingDataset(LightningDataModule):
 
 
 class FinetuningDataset(LightningDataModule):
-    def __init__(self, vocab_name, tokenization_mode="bekern", batch_size=1, num_workers=20) -> None:
+    def __init__(self, config:ExperimentConfig, fold=0) -> None:
         super().__init__()
-        self.data_path = "Data/Mozarteum/partitions_mozarteum/excerpts/fold_0"
-        self.base_folder = 'Data/Mozarteum/'
-        self.vocab_name = vocab_name
-        self.batch_size = batch_size
-        self.num_workers = num_workers
-        self.train_dataset = CurriculumTrainingDataset(data_path=f"{self.data_path}/train.txt", base_folder=self.base_folder, augment=True, tokenization_mode=tokenization_mode, reduce_ratio=1.0)
-        self.val_dataset = RealDataset(data_path=f"{self.data_path}/val.txt", base_folder=self.base_folder, augment=False, tokenization_mode=tokenization_mode, reduce_ratio=1.0)
-        self.test_dataset = RealDataset(data_path=f"{self.data_path}/test.txt", base_folder=self.base_folder, augment=False, tokenization_mode=tokenization_mode, reduce_ratio=1.0)
+        self.data_path = config.data.data_path + f"fold_{fold}/"
+        self.base_folder = config.data.base_folder
+        self.vocab_name = config.data.vocab_name
+        self.batch_size = config.data.batch_size
+        self.num_workers = config.data.num_workers
+        self.tokenization_mode = config.data.tokenization_mode
+        self.train_dataset = CurriculumTrainingDataset(data_path=f"{self.data_path}/train.txt", base_folder=self.base_folder, augment=True, tokenization_mode=self.tokenization_mode, reduce_ratio=config.data.reduce_ratio)
+        self.val_dataset = RealDataset(data_path=f"{self.data_path}/val.txt", base_folder=self.base_folder, augment=False, tokenization_mode=self.tokenization_mode, reduce_ratio=config.data.reduce_ratio)
+        self.test_dataset = RealDataset(data_path=f"{self.data_path}/test.txt", base_folder=self.base_folder, augment=False, tokenization_mode=self.tokenization_mode, reduce_ratio=config.data.reduce_ratio)
         w2i, i2w = check_and_retrieveVocabulary([self.train_dataset.get_gt(), self.val_dataset.get_gt(), self.test_dataset.get_gt()], "vocab/", f"{self.vocab_name}")#
     
         self.train_dataset.set_dictionaries(w2i, i2w)
@@ -313,13 +317,13 @@ class FinetuningDataset(LightningDataModule):
 
 if __name__ == "__main__":
     dataset = RealDataset(
-        data_path='Data/Mozarteum/partitions_mozarteum/excerpts/fold_0/train.txt',
-        base_folder='Data/Mozarteum/',
-        reduce_ratio=1.0,
+        data_path='Data/Polish_Scores/partitions_polish_scores/excerpts/fold_0/train.txt',
+        base_folder='Data/Polish_Scores/',
+        reduce_ratio=0.5,
         tokenization_mode='bekern'
     )
 
-    w2i, i2w = check_and_retrieveVocabulary([], "vocab/", "Mozarteum_BeKern")
+    w2i, i2w = check_and_retrieveVocabulary([], "vocab/", "Polish_Scores_BeKern")
 
     dataset.set_dictionaries(w2i, i2w)
 

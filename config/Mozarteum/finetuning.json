@@ -1,0 +1,11 @@
+{
+    "data":{
+      "data_path": "Data/Mozarteum/partitions_mozarteum/excerpts/",
+      "base_folder": "Data/Mozarteum/",
+      "batch_size": 1,
+      "vocab_name": "Mozarteum_BeKern",
+      "num_workers": 20,
+      "tokenization_mode": "bekern",
+      "reduce_ratio": 1.0
+    }
+}
