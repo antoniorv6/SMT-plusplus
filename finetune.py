@@ -23,13 +23,13 @@ def main(config:ExperimentConfig, fold:int, weights_path:str=None):
                                   d_model=256, dim_ff=256, num_dec_layers=8)
     else:
         logger.info(f"Loading weights from {weights_path}")
-        model_wrapper = SMTPP_Trainer.load_from_checkpoint('weights/pretraining/SMTPP_Polish_Scores_BeKern_pretraining.ckpt')
+        model_wrapper = SMTPP_Trainer.load_from_checkpoint(weights_path)
     
-    wandb_logger = WandbLogger(project='SMTPP', group=f"Polish_Scores", name=f"SMTPP_Polish_Scores_Bekern_f4", log_model=False)
+    wandb_logger = WandbLogger(project='SMTPP', group=f"Polish_Scores", name=f"SMTPP_Polish_Scores_Bekern_f{fold}", log_model=False)
 
     early_stopping = EarlyStopping(monitor="val_SER", min_delta=0.01, patience=5, mode="min", verbose=True)
     
-    checkpointer = ModelCheckpoint(dirpath=f"weights/finetuning/", filename=f"SMTPP_Polish_Scores_Bekern_f0", 
+    checkpointer = ModelCheckpoint(dirpath=f"weights/finetuning/", filename=f"SMTPP_Polish_Scores_Bekern_f{fold}", 
                                    monitor="val_SER", mode='min',
                                    save_top_k=1, verbose=True)
 
