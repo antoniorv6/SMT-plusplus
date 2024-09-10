@@ -315,6 +315,90 @@ class FinetuningDataset(LightningDataModule):
     def test_dataloader(self):
         return torch.utils.data.DataLoader(self.test_dataset, batch_size=self.batch_size, num_workers=self.num_workers, collate_fn=batch_preparation_img2seq)
 
+class SyntheticCLDataset(OMRIMG2SEQDataset):
+    def __init__(self, data_path, base_folder, teacher_forcing_perc=0.2, reduce_ratio=1.0, 
+                augment=False, tokenization_mode="standard") -> None:
+       super().__init__(teacher_forcing_perc, augment)
+       self.reduce_ratio = reduce_ratio
+       self.tokenization_mode = tokenization_mode
+       self.generator = VerovioGenerator(sources=["Data/GrandStaff/partitions_grandstaff/types/train.txt"], 
+                                         base_folder="Data/GrandStaff/",
+                                         tokenization_mode=tokenization_mode)
+       
+       self.max_synth_prob = 0.9
+       self.min_synth_prob = 0.2
+       self.finetune_steps = 200000
+       self.increase_steps = 40000
+       self.num_cl_steps = 3
+       self.max_cl_steps = self.increase_steps * self.num_cl_steps
+       self.curriculum_stage_beginning = 2
+    
+    def set_trainer_data(self, trainer):
+        self.trainer = trainer
+
+    def __getitem__(self, index):
+        stage = (self.trainer.global_step // self.increase_steps) + self.curriculum_stage_beginning
+        gen_author_title = np.random.rand() > 0.5
+        wandb.log({'Stage': stage})
+        if stage < (self.num_cl_steps + self.curriculum_stage_beginning):
+           num_sys_to_gen = random.randint(1, stage)
+           x, y = self.generator.generate_full_page_score(
+               max_systems = num_sys_to_gen,
+               strict_systems=True,
+               strict_height=(random.random() < 0.3),
+               include_author=gen_author_title,
+               include_title=gen_author_title,
+               texturize_image=(random.random() > 0.5),
+               reduce_ratio=0.5)
+        else:
+            x, y = self.generator.generate_full_page_score(
+                max_systems = random.randint(3, 4),
+                strict_systems=False,
+                strict_height=(random.random() < 0.3),
+                include_author=gen_author_title,
+                include_title=gen_author_title,
+                texturize_image=(random.random() > 0.5),
+                reduce_ratio=0.5)
+
+        if self.augment:
+           x = augment(x)
+        else:
+           x = convert_img_to_tensor(x)
+
+        y = torch.from_numpy(np.asarray([self.w2i[token] for token in y if token != '']))
+        decoder_input = self.apply_teacher_forcing(y)
+        return x, decoder_input, y
+
+    def __len__(self):
+       return 80000
+
+class SynthFinetuningDataset(LightningDataModule):
+    def __init__(self, config:ExperimentConfig, fold=0) -> None:
+        super().__init__()
+        self.data_path = config.data.data_path + f"fold_{fold}/"
+        self.base_folder = config.data.base_folder
+        self.vocab_name = config.data.vocab_name
+        self.batch_size = config.data.batch_size
+        self.num_workers = config.data.num_workers
+        self.tokenization_mode = config.data.tokenization_mode
+        self.train_dataset = SyntheticCLDataset(data_path=f"{self.data_path}/train.txt", base_folder=self.base_folder, augment=True, tokenization_mode=self.tokenization_mode, reduce_ratio=config.data.reduce_ratio)
+        self.val_dataset = RealDataset(data_path=f"{self.data_path}/val.txt", base_folder=self.base_folder, augment=False, tokenization_mode=self.tokenization_mode, reduce_ratio=config.data.reduce_ratio)
+        self.test_dataset = RealDataset(data_path=f"{self.data_path}/test.txt", base_folder=self.base_folder, augment=False, tokenization_mode=self.tokenization_mode, reduce_ratio=config.data.reduce_ratio)
+        w2i, i2w = check_and_retrieveVocabulary([self.train_dataset.get_gt(), self.val_dataset.get_gt(), self.test_dataset.get_gt()], "vocab/", f"{self.vocab_name}")#
+    
+        self.train_dataset.set_dictionaries(w2i, i2w)
+        self.val_dataset.set_dictionaries(w2i, i2w)
+        self.test_dataset.set_dictionaries(w2i, i2w)
+        
+    def train_dataloader(self):
+        return torch.utils.data.DataLoader(self.train_dataset, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=True, collate_fn=batch_preparation_img2seq)
+    
+    def val_dataloader(self):
+        return torch.utils.data.DataLoader(self.val_dataset, batch_size=self.batch_size, num_workers=self.num_workers, collate_fn=batch_preparation_img2seq)
+    
+    def test_dataloader(self):
+        return torch.utils.data.DataLoader(self.test_dataset, batch_size=self.batch_size, num_workers=self.num_workers, collate_fn=batch_preparation_img2seq)
+
 if __name__ == "__main__":
     dataset = RealDataset(
         data_path='Data/Polish_Scores/partitions_polish_scores/excerpts/fold_0/train.txt',

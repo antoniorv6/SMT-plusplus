@@ -30,8 +30,8 @@ def load_kern_file(path: str) -> str:
         krn = krn.replace("\n", " <b> ")
         krn = krn.replace("·/", "")
         krn = krn.replace("·\\", "")
-        krn = krn.replace('@', '')
-        krn = krn.replace('·', '')
+        krn = krn.replace('@', ' ')
+        krn = krn.replace('·', ' ')
             
         krn = krn.split(" ")[4:]
         krn = [re.sub(r'(?<=\=)\d+', '', token) for token in krn]
@@ -90,10 +90,32 @@ print(f"Number of tokens in PolishScores: {len(fpw2i)}")
 #Calculate the number of tokens that are in fpw2i, but not in gw2i
 fpw2i_not_gw2i = set(fpw2i.keys()) - set(gw2i.keys())
 print(f"Number of tokens in PolishScores that are not in GrandStaff: {len(fpw2i_not_gw2i)}")
+
+#Save fpw2i_not_gw2i to a file
+with open("fpw2i_not_gw2i.txt", "w") as file:
+    file.write("\n".join(fpw2i_not_gw2i))
+
 #print(fpw2i_not_gw2i)
 #Calculate the number of tokens that are both in fpw2i and gw2i
 fpw2i_and_gw2i = set(fpw2i.keys()) & set(gw2i.keys())
 print(f"Number of tokens in PolishScores that are in GrandStaff: {len(fpw2i_and_gw2i)}")
+
+#Compute the percentage of tokens in PolishScores that are not in GrandStaff
+percentage = len(fpw2i_not_gw2i)/len(fpw2i.keys())
+print(f"Percentage of tokens in PolishScores that are not in GrandStaff: {percentage}")
+# Compute the number of times tokens that are in PolishScores do not appear in GrandStaff
+count = 0
+total_count = 0
+for seq in fpytest:
+    for token in seq:
+        if token in fpw2i_not_gw2i:
+            count += 1
+        total_count += 1
+
+
+print(f"Percentage of frequency of tokens in PolishScores do not appear in GrandStaff: {count/total_count}")
+
+
 
 #print(fpw2i_not_gw2i)
 #print(fpw2i)
