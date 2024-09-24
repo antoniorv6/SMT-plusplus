@@ -10,6 +10,7 @@ from Generator.SynthGenerator import VerovioGenerator
 from data_augmentation.data_augmentation import augment, convert_img_to_tensor
 from utils.vocab_utils import check_and_retrieveVocabulary
 
+from datasets import load_dataset
 from torch.utils.data import Dataset
 from lightning.pytorch import LightningDataModule
 
@@ -25,45 +26,41 @@ def clean_kern(krn, avoid_tokens=['*tremolo','*staff2', '*staff1','*Xped', '*tre
                 
     return "\n".join(newkrn)
 
-def load_kern_file(path: str, tokenization_mode='bekern') -> str:
-    with open(path, 'r') as file:
-        krn = file.read()
-        krn = clean_kern(krn)
-        krn = krn.replace(" ", " <s> ")
-        krn = krn.replace("\t", " <t> ")
-        krn = krn.replace("\n", " <b> ")
-        krn = krn.replace(" /", "")
-        krn = krn.replace(" \\", "")
-        krn = krn.replace("·/", "")
-        krn = krn.replace("·\\", "")
+def parse_kern_file(krn: str, tokenization_mode='bekern') -> str:
+    krn = clean_kern(krn)
+    krn = krn.replace(" ", " <s> ")
+    krn = krn.replace("\t", " <t> ")
+    krn = krn.replace("\n", " <b> ")
+    krn = krn.replace(" /", "")
+    krn = krn.replace(" \\", "")
+    krn = krn.replace("·/", "")
+    krn = krn.replace("·\\", "")
+    
+    if tokenization_mode == "kern":
+        krn = krn.replace("·", "").replace('@', '')
+    
+    if tokenization_mode == "ekern":
+        krn = krn.replace("·", " ").replace('@', '')
+    
+    if tokenization_mode == "bekern":
+        krn = krn.replace("·", " ").replace("@", " ")
+        
+    krn = krn.split(" ")[4:-1]
+    krn = [re.sub(r'(?<=\=)\d+', '', token) for token in krn]
+    
+    return krn
 
-        if tokenization_mode == "kern":
-            krn = krn.replace("·", "").replace('@', '')
-        
-        if tokenization_mode == "ekern":
-            krn = krn.replace("·", " ").replace('@', '')
-        
-        if tokenization_mode == "bekern":
-            krn = krn.replace("·", " ").replace("@", " ")
-            
-        krn = krn.split(" ")[4:-1]
-        krn = [re.sub(r'(?<=\=)\d+', '', token) for token in krn]
-        
-        return krn
-
-def load_from_files_list(file_ref: list, base_folder:str, tokenization_mode='bekern', reduce_ratio=0.5) -> list:
-    files = []
+def load_from_files_list(file_ref:str, split:str="train", tokenization_mode='bekern', reduce_ratio=0.5) -> list:
+    dataset = load_dataset(file_ref, split=split)
     x = []
     y = []
-    with open(file_ref, 'r') as file:
-        files = [line for line in file.read().split('\n') if line != ""]
-        for file in progress.track(files):
-           y.append(['<bos>'] + load_kern_file((base_folder + file), tokenization_mode=tokenization_mode) + ['<eos>'])
-           img = cv2.imread(base_folder + file.replace('.ekern', '.jpg'))
-           width = int(np.ceil(img.shape[1] * reduce_ratio))
-           height = int(np.ceil(img.shape[0] * reduce_ratio))
-           img = cv2.resize(img, (width, height))
-           x.append(img)
+    for sample in dataset:
+        y.append(['<bos>'] + parse_kern_file(sample["transcription"], tokenization_mode=tokenization_mode) + ['<eos>'])
+        img = img = np.array(sample['image'])
+        width = int(np.ceil(img.shape[1] * reduce_ratio))
+        height = int(np.ceil(img.shape[0] * reduce_ratio))
+        img = cv2.resize(img, (width, height))
+        x.append(img)
     return x, y
 
 def batch_preparation_img2seq(data):
@@ -140,11 +137,10 @@ class OMRIMG2SEQDataset(Dataset):
         return self.i2w
 
 class SyntheticOMRDataset(OMRIMG2SEQDataset):
-    def __init__(self, data_path, base_folder, number_of_systems=1, teacher_forcing_perc=0.2, reduce_ratio=0.5, 
+    def __init__(self, data_path, split="train", number_of_systems=1, teacher_forcing_perc=0.2, reduce_ratio=0.5, 
                  dataset_length=40000, augment=False, tokenization_mode="standard") -> None:
         super().__init__(teacher_forcing_perc, augment)
-        self.generator = VerovioGenerator(sources=[data_path], base_folder=base_folder,
-                                          tokenization_mode=tokenization_mode)
+        self.generator = VerovioGenerator(sources=data_path, split=split, tokenization_mode=tokenization_mode)
         
         self.num_sys_gen = number_of_systems
         self.dataset_len = dataset_length
@@ -168,12 +164,12 @@ class SyntheticOMRDataset(OMRIMG2SEQDataset):
         return self.dataset_len
 
 class RealDataset(OMRIMG2SEQDataset):
-    def __init__(self, data_path, base_folder, teacher_forcing_perc=0.2, reduce_ratio=1.0, 
+    def __init__(self, data_path, split, teacher_forcing_perc=0.2, reduce_ratio=1.0, 
                 augment=False, tokenization_mode="standard") -> None:
        super().__init__(teacher_forcing_perc, augment)
        self.reduce_ratio = reduce_ratio
        self.tokenization_mode = tokenization_mode
-       self.x, self.y = load_from_files_list(data_path, base_folder, tokenization_mode, reduce_ratio=reduce_ratio)
+       self.x, self.y = load_from_files_list(data_path, split, tokenization_mode, reduce_ratio=reduce_ratio)
        
     def __getitem__(self, index):
        
@@ -193,14 +189,14 @@ class RealDataset(OMRIMG2SEQDataset):
        return len(self.x)
 
 class CurriculumTrainingDataset(OMRIMG2SEQDataset):
-    def __init__(self, data_path, base_folder, teacher_forcing_perc=0.2, reduce_ratio=1.0, 
+    def __init__(self, data_path, split, teacher_forcing_perc=0.2, reduce_ratio=1.0, 
                 augment=False, tokenization_mode="standard") -> None:
        super().__init__(teacher_forcing_perc, augment)
        self.reduce_ratio = reduce_ratio
        self.tokenization_mode = tokenization_mode
-       self.x, self.y = load_from_files_list(data_path, base_folder, tokenization_mode, reduce_ratio=reduce_ratio)
-       self.generator = VerovioGenerator(sources=["Data/GrandStaff/partitions_grandstaff/types/train.txt"], 
-                                         base_folder="Data/GrandStaff/",
+       self.x, self.y = load_from_files_list(data_path, split, tokenization_mode, reduce_ratio=reduce_ratio)
+       self.generator = VerovioGenerator(sources="antoniorv6/grandstaff-ekern", 
+                                         split="train",
                                          tokenization_mode=tokenization_mode)
        
        self.max_synth_prob = 0.9
@@ -263,15 +259,14 @@ class PretrainingDataset(LightningDataModule):
     def __init__(self, config:ExperimentConfig) -> None:
         super().__init__()
         self.data_path = config.data.data_path
-        self.base_folder = config.data.base_folder
         self.vocab_name = config.data.vocab_name
         self.batch_size = config.data.batch_size
         self.num_workers = config.data.num_workers
         self.tokenization_mode = config.data.tokenization_mode
 
-        self.train_dataset = SyntheticOMRDataset(data_path=f"{self.data_path}/train.txt", base_folder=self.base_folder, augment=True, tokenization_mode=self.tokenization_mode)
-        self.val_dataset = SyntheticOMRDataset(data_path=f"{self.data_path}/val.txt", base_folder=self.base_folder, dataset_length=1000, augment=False, tokenization_mode=self.tokenization_mode)
-        self.test_dataset = SyntheticOMRDataset(data_path=f"{self.data_path}/test.txt", base_folder=self.base_folder, dataset_length=1000, augment=False, tokenization_mode=self.tokenization_mode)
+        self.train_dataset = SyntheticOMRDataset(data_path=self.data_path, split="train", augment=True, tokenization_mode=self.tokenization_mode)
+        self.val_dataset = SyntheticOMRDataset(data_path=self.data_path, split="val", dataset_length=1000, augment=False, tokenization_mode=self.tokenization_mode)
+        self.test_dataset = SyntheticOMRDataset(data_path=self.data_path, split="test", dataset_length=1000, augment=False, tokenization_mode=self.tokenization_mode)
         w2i, i2w = check_and_retrieveVocabulary([self.train_dataset.get_gt(), self.val_dataset.get_gt(), self.test_dataset.get_gt()], "vocab/", f"{self.vocab_name}")#
     
         self.train_dataset.set_dictionaries(w2i, i2w)
@@ -291,15 +286,14 @@ class PretrainingDataset(LightningDataModule):
 class FinetuningDataset(LightningDataModule):
     def __init__(self, config:ExperimentConfig, fold=0) -> None:
         super().__init__()
-        self.data_path = config.data.data_path + f"fold_{fold}/"
-        self.base_folder = config.data.base_folder
+        self.data_path = config.data.data_path
         self.vocab_name = config.data.vocab_name
         self.batch_size = config.data.batch_size
         self.num_workers = config.data.num_workers
         self.tokenization_mode = config.data.tokenization_mode
-        self.train_dataset = CurriculumTrainingDataset(data_path=f"{self.data_path}/train.txt", base_folder=self.base_folder, augment=True, tokenization_mode=self.tokenization_mode, reduce_ratio=config.data.reduce_ratio)
-        self.val_dataset = RealDataset(data_path=f"{self.data_path}/val.txt", base_folder=self.base_folder, augment=False, tokenization_mode=self.tokenization_mode, reduce_ratio=config.data.reduce_ratio)
-        self.test_dataset = RealDataset(data_path=f"{self.data_path}/test.txt", base_folder=self.base_folder, augment=False, tokenization_mode=self.tokenization_mode, reduce_ratio=config.data.reduce_ratio)
+        self.train_dataset = CurriculumTrainingDataset(data_path=self.data_path, split="train", augment=True, tokenization_mode=self.tokenization_mode, reduce_ratio=config.data.reduce_ratio)
+        self.val_dataset = RealDataset(data_path=self.data_path, split="val", augment=False, tokenization_mode=self.tokenization_mode, reduce_ratio=config.data.reduce_ratio)
+        self.test_dataset = RealDataset(data_path=self.data_path, split="test", augment=False, tokenization_mode=self.tokenization_mode, reduce_ratio=config.data.reduce_ratio)
         w2i, i2w = check_and_retrieveVocabulary([self.train_dataset.get_gt(), self.val_dataset.get_gt(), self.test_dataset.get_gt()], "vocab/", f"{self.vocab_name}")#
     
         self.train_dataset.set_dictionaries(w2i, i2w)

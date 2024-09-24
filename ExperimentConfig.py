@@ -33,7 +33,6 @@ def to_class(c: Type[T], x: Any) -> dict:
 @dataclass
 class Data:
     data_path: str
-    base_folder: str
     batch_size: int
     vocab_name: str
     num_workers: int
@@ -44,18 +43,16 @@ class Data:
     def from_dict(obj: Any) -> 'Data':
         assert isinstance(obj, dict)
         data_path = from_str(obj.get("data_path"))
-        base_folder = from_str(obj.get("base_folder"))
         batch_size = from_int(obj.get("batch_size"))
         vocab_name = from_str(obj.get("vocab_name"))
         num_workers = from_int(obj.get("num_workers"))
         tokenization_mode = from_str(obj.get("tokenization_mode"))
         reduce_ratio = from_float(obj.get("reduce_ratio"))
-        return Data(data_path, base_folder, batch_size, vocab_name, num_workers, tokenization_mode, reduce_ratio)
+        return Data(data_path, batch_size, vocab_name, num_workers, tokenization_mode, reduce_ratio)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["data_path"] = from_str(self.data_path)
-        result["base_folder"] = from_str(self.base_folder)
         result["batch_size"] = from_int(self.batch_size)
         result["vocab_name"] = from_str(self.vocab_name)
         result["num_workers"] = from_int(self.num_workers)

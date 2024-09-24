@@ -1,9 +1,10 @@
 import re
 import os
 import cv2
-#import joblib
+
 import verovio
 import random
+from datasets import load_dataset
 
 from PIL import Image, ImageOps
 from wand.image import Image as IMG
@@ -16,9 +17,6 @@ from cairosvg import svg2png
 
 import names
 from wonderwords import RandomSentence
-
-
-#memory = joblib.memory.Memory("./joblib_cache", mmap_mode="r", verbose=0)
 
 def clean_kern(krn, avoid_tokens=['*Xped', '*staff1', '*staff2', '*tremolo', '*ped', '*Xtuplet', '*tuplet', "*Xtremolo", '*cue', '*Xcue', '*rscale:1/2', '*rscale:1', '*kcancel', '*below']):
     krn = krn.split('\n')
@@ -33,27 +31,21 @@ def clean_kern(krn, avoid_tokens=['*Xped', '*staff1', '*staff2', '*tremolo', '*p
     return "\n".join(newkrn)
 
 #@memory.cache
-def load_kern_file(path: str) -> str:
-    with open(path, 'r') as file:
-        krn = file.read()
-        krn = clean_kern(krn)
-        krn = krn.replace(" ", " <s> ")
-        krn = krn.replace("\t", " <t> ")
-        krn = krn.replace("\n", " <b> ")
-        krn = krn.replace("·/", "")
-        krn = krn.replace("·\\", "")
-            
-        krn = krn.split(" ")[4:]
-        krn = [re.sub(r'(?<=\=)\d+', '', token) for token in krn]
+def parse_kern(krn: str) -> str:
+    krn = clean_kern(krn)
+    krn = krn.replace(" ", " <s> ")
+    krn = krn.replace("\t", " <t> ")
+    krn = krn.replace("\n", " <b> ")
+    krn = krn.replace("·/", "")
+    krn = krn.replace("·\\", "")
         
-        return " ".join(krn)
+    krn = krn.split(" ")[4:]
+    krn = [re.sub(r'(?<=\=)\d+', '', token) for token in krn]
+    
+    return " ".join(krn)
 
-def load_from_files_list(file_ref: list, base_folder:str) -> list:
-    files = []
-    for file_path in file_ref:
-        with open(file_path, 'r') as file:
-            files = [line for line in file.read().split('\n') if line != ""]
-            return [load_kern_file(base_folder + file) for file in progress.track(files)]
+def load_from_files_list(dataset_ref: list, split:str="train") -> list:
+    return [parse_kern(content) for content in progress.track(load_dataset(dataset_ref, split=split)["transcription"])]
 
 def rfloat(start, end):
     return round(random.uniform(start, end), 2)
@@ -62,8 +54,8 @@ def rint(start, end):
     return random.randint(start, end)        
 
 class VerovioGenerator():
-    def __init__(self, sources: list, base_folder:str, tokenization_mode='bekern'):
-        self.beat_db = self.load_beats(sources, base_folder)
+    def __init__(self, sources: list, split="train", tokenization_mode='bekern'):
+        self.beat_db = self.load_beats(sources, split=split)
         verovio.enableLog(verovio.LOG_OFF)
         self.tk = verovio.toolkit()
         
@@ -72,8 +64,8 @@ class VerovioGenerator():
         self.textures = [os.path.join("Generator/paper_textures", f) for f in os.listdir("Generator/paper_textures") if os.path.isfile(os.path.join("Generator/paper_textures", f))]
 
         
-    def load_beats(self, sources: list, base_folder:str):
-        sequences = load_from_files_list(sources, base_folder)
+    def load_beats(self, sources: list, split:str):
+        sequences = load_from_files_list(sources, split=split)
         beats = {}
         for sequence in sequences:
             if sequence.count('*-') == 2:
@@ -88,7 +80,7 @@ class VerovioGenerator():
         for key in keys:
             if len(beats[key]) < 6:
                 del beats[key]
-            
+        
         return beats
 
     def count_class_occurrences(self, svg_file, class_name):
