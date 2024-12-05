@@ -196,7 +196,7 @@ class VerovioGenerator():
             complete_score = []
             if len(systems_to_compose) > 1:
                 complete_score = systems_to_compose[0][:-5]
-                for system in enumerate(systems_to_compose[1:-1]):
+                for system in systems_to_compose[1:-1]:
                         complete_score += ["<b>"] + self.filter_system_continuation(system)
                 complete_score += ["<b>"] + self.filter_system_continuation(systems_to_compose[-1], cut_end=False)
             else:
