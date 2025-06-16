@@ -1,3 +1,12 @@
+# ⚠️ Repository Migration Notice
+**This repository is no longer actively maintained.**
+The latest version of this project has been integrated into the main SMT repository. All future development, updates, and releases will be available at:
+🔗 [https://github.com/antoniorv6/SMT]
+
+---
+
+Please update your bookmarks, clone URLs, and any references to point to the new location. This repository will remain available for historical purposes, but no new features or bug fixes will be applied here.
+
 <p align='center'>
   <a href='https://praig.ua.es/'><img src='https://i.imgur.com/Iu7CvC1.png' alt='PRAIG-logo' width='100'></a>
   <a href='https://www.litislab.fr/'><img src='graphics_readme/Litis_Logo.png' alt='LITIS-logo' width='100'></a>
@@ -35,9 +44,6 @@ This GitHub repository contains the implementation of the upgraded version of th
 <p align="center">
   <img src="graphics_readme/smt++.jpeg" alt="content" style="border: 1px solid black; width: 800px;">
 </p>
-
-> [!WARNING]
-This is a work-in-progress project. Although it is very advanced and has an associate preprint, some bugs may be found.
 
 # Project setup
 This implementation has been developed in Python 3.9, PyTorch 2.0 and CUDA 12.0. 
